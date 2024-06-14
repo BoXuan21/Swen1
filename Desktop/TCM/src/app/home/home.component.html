@@ -1,0 +1,22 @@
+<div class="hero-section">
+  <img src="assets/TCMF/TCM1.jpg" alt="Hero Image" class="hero-image">
+  <div class="hero-text">
+    <h1>Traditionell Chinesische Massage in Wien
+    </h1>
+  </div>
+</div>
+
+<div class="intro-section">
+  <h2>Our Treatments</h2>
+  <p>Discover the variety of treatments we offer to rejuvenate your mind, body, and spirit.</p>
+</div>
+
+<div class="treatments-section">
+  <div class="treatment" *ngFor="let treatment of treatments">
+    <img [src]="treatment.image" alt="{{treatment.title}}" class="treatment-image">
+    <div class="treatment-info">
+      <h3>{{treatment.title}}</h3>
+      <p>{{treatment.description}}</p>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,23 @@
+<div class="hero-section">
+    <img src="assets/TCMF/TCM8.jpg" alt="Hero Image" class="hero-image">
+    <div class="hero-text">
+      <h1>Kontakt</h1>
+    </div>
+  </div>
+  
+  <div class="intro-section">
+    <h2>Kontaktieren sie uns!</h2>
+    <p>Kontaktieren Sie uns gerne per Telefon oder besuchen Sie uns in unserem Studio <p></p>Wir freuen uns auf Ihren Besuch und wünschen ihnen Alles gute!</div>
+  
+  <div class="contact-section">
+    <div class="contact-method" *ngFor="let method of contactMethods">
+      <img [src]="method.icon" alt="{{method.title}}" class="contact-icon">
+      <div class="contact-info">
+        <h3>{{method.title}}</h3>
+        <p *ngIf="method.name"><strong>{{method.name}}</strong></p>
+        <p>{{method.description}}</p>
+      </div>
+    </div>
+  </div>
+  
+  

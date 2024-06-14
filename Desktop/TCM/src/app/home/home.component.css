@@ -1,0 +1,75 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.hero-section {
+  position: relative;
+  text-align: center;
+  color: white;
+}
+
+.hero-image {
+  width: 100%;
+  height: 600px; /* Set a fixed height for the hero image */
+  object-fit: cover; /* Ensure the image covers the specified dimensions without distortion */
+  filter: blur(4px); /* Apply blur effect to the hero image */
+}
+
+
+.hero-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* Apple system font */
+  font-size: 2rem; /* Increase font size */
+  color: rgb(255, 255, 255); /* Ensure the text color contrasts with the background */
+  padding: 1rem;
+}
+
+.intro-section {
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* Apple system font */
+  font-size: 25px;
+  padding: 3rem;
+}
+
+.treatments-section {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* Apple system font */
+  flex-grow: 1;
+}
+
+.treatment {
+  background-color: #f9f9f9;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  width: calc(33% - 2rem);
+  margin: 1rem;
+  text-align: center;
+}
+
+.treatment-image {
+  width: 100%;
+  height: 300px; /* Set a fixed height for all images */
+  object-fit: cover; /* Ensure images cover the specified dimensions without distortion */
+}
+
+.treatment-info {
+  padding: 1rem;
+}
+
+.treatment-info h3 {
+  margin: 0.5rem 0;
+}
+
+.treatment-info p {
+  color: #555;
+}

@@ -1,0 +1,37 @@
+.navbar {
+  background-color: rgba(255, 255, 255, 0.1); /* Translucent grey with 50% opacity */
+  position: fixed;
+  display: flex;
+  justify-content: space-around;
+  align-items: center; /* Center align items vertically */
+  padding: 0.25rem; /* Reduced padding */
+  width: 100%;
+  top: 0;
+  z-index: 1000;
+}
+
+.nav-item {
+  color: rgb(0, 0, 0); /* Black text color */
+  text-decoration: none;
+  font-weight: bold;
+  padding: 0.25rem 0.5rem; /* Reduced padding */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* Apple system font */
+  font-size: 1.4rem; /* Slightly reduced text size */
+  transition: color 0.3s, transform 0.3s; /* Smooth transition for color and size */
+}
+
+.nav-item:hover {
+  color: #ffffff; /* Lighter shade of red on hover */
+  transform: scale(1.2); /* Scale text on hover */
+}
+
+.logo {
+  height: 80px; /* Reduced height of the logo */
+  width: auto;
+  transition: transform 0.3s; /* Smooth transition for scaling */
+}
+
+.logo:hover {
+  transform: scale(1.25); /* Scale the logo on hover */
+  color: white;
+}

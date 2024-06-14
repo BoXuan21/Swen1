@@ -1,0 +1,60 @@
+.footer {
+    background-color: rgb(58, 12, 12); /* Grey with 80% opacity */
+    padding: 0.5rem;
+    text-align: center;
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* Apple system font */
+    color: rgb(185, 167, 70);
+  }
+  
+  .footer-content {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .footer-section {
+    margin: 0.1rem;
+  }
+  
+  .footer-section h3 {
+    margin-bottom: 0.5rem;
+  }
+  
+  .footer-section p,
+  .footer-section a {
+    color: #fff; /* White text color */
+    text-decoration: none;
+  }
+  
+  .footer-section a:hover {
+    color: #FF6347; /* Lighter shade of red on hover */
+  }
+  
+  .social-link {
+    display: block;
+    margin: 0.5rem 0;
+  }
+  
+  .social-icons {
+    display: flex;
+    align-items: center;
+  }
+  
+  .social-icon {
+    height: 50px; /* Adjust as needed */
+    width: auto;
+    transition: transform 0.3s; /* Smooth transition for scaling */
+  }
+  
+  .social-icon:hover {
+    transform: scale(1.1); /* Scale the icon on hover */
+  }
+  
+  .tcm-logo {
+    height: 60px; /* Adjust the height to match the social icon */
+    width: auto;
+    margin-left: 1rem; /* Space between the icons */
+  }
+  
