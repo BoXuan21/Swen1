@@ -1,0 +1,3 @@
+C:/Users/Bo Xuan Yang/CLionProjects/Verts/cmake-build-debug/CMakeFiles/Verts.dir
+C:/Users/Bo Xuan Yang/CLionProjects/Verts/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/Bo Xuan Yang/CLionProjects/Verts/cmake-build-debug/CMakeFiles/rebuild_cache.dir
