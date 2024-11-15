@@ -14,12 +14,14 @@
         "outputPath": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Bo Xuan Yang\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\Bo Xuan Yang\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -43,10 +45,6 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
-            "Microsoft.NET.Test.Sdk": {
-              "target": "Package",
-              "version": "[17.11.1, )"
-            },
             "Newtonsoft.Json": {
               "target": "Package",
               "version": "[13.0.1, )"
@@ -78,7 +76,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Users\\Bo Xuan Yang\\.dotnet\\sdk\\8.0.401/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.403/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

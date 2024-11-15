@@ -8,50 +8,66 @@ namespace MCTG
 {
     public class HttpsController
     {
-        // Method to start the HTTPS server
         public async Task StartServer()
         {
             HttpListener listener = new HttpListener();
-            listener.Prefixes.Add("https://localhost:5001/");
-            listener.Start();
-            Console.WriteLine("HTTPS Server started. Listening on https://localhost:5001/");
+
+            // Ändere den Port hier
+            string url = "http://localhost:5001/";
+            listener.Prefixes.Add(url);
+
+            try
+            {
+                listener.Start();
+                Console.WriteLine($"HTTPS Server gestartet. Listening on {url}");
+            }
+            catch (HttpListenerException ex)
+            {
+                Console.WriteLine("Fehler beim Start des Servers. Stelle sicher, dass das SSL-Zertifikat korrekt konfiguriert ist.");
+                Console.WriteLine($"Fehlermeldung: {ex.Message}");
+                return;
+            }
 
             while (true)
             {
                 try
                 {
-                    // Wait for incoming request
+                    // Auf Anfrage warten
                     HttpListenerContext context = await listener.GetContextAsync();
-                    Console.WriteLine("Received request.");
+                    Console.WriteLine($"Anfrage empfangen: {context.Request.HttpMethod} {context.Request.Url}");
 
-                    // Check for POST method
                     if (context.Request.HttpMethod == "POST")
                     {
-                        // Read the POST data
+                        // POST-Daten lesen
                         using (StreamReader reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
                         {
                             string content = await reader.ReadToEndAsync();
-                            Console.WriteLine("Received POST data:");
+                            Console.WriteLine("Empfangene POST-Daten:");
                             Console.WriteLine(content);
 
-                            // Respond to client
-                            string responseString = "Data received successfully.";
+                            // Rückfrage formulieren
+                            string responseString = "Daten erfolgreich empfangen. Bitte geben Sie weitere Details an (z.B. ein Name oder eine ID):";
                             byte[] buffer = Encoding.UTF8.GetBytes(responseString);
                             context.Response.ContentLength64 = buffer.Length;
+                            context.Response.ContentType = "text/plain";
                             await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                            context.Response.OutputStream.Close();
                         }
                     }
                     else
                     {
-                        // Respond with 405 for non-POST requests
+                        // Antwort für nicht-POST-Anfragen
                         context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                        context.Response.Close();
+                        string errorResponse = "Nur POST-Anfragen sind erlaubt.";
+                        byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
+                        context.Response.ContentLength64 = buffer.Length;
+                        await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                     }
+
+                    context.Response.Close();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Error: " + ex.Message);
+                    Console.WriteLine($"Fehler bei der Verarbeitung der Anfrage: {ex.Message}");
                 }
             }
         }
