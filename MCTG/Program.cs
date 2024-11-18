@@ -7,27 +7,17 @@ namespace MCTG
     {
         public static async Task Main(string[] args)
         {
-            // Create a user
-            User user = new User();
+            // Create a new game instance and run it
+            Game game = new Game();
+            game.CreateGame();
+            game.StartGame();
 
-            // Add random cards to the user's stack
-            user.Stack.AddRandomCards(50); // Add 50 cards to the stack
+           /* // Additional functionality for server (optional)
+            UserController userController = new UserController();
+            HttpsController httpsController = new HttpsController(userController);
 
-            // Create a deck using the user's stack
-            Deck deck = new Deck(user.Stack);
-
-            // Display the deck
-            deck.DisplayDeck();
-            
-            //Display current card amount
-            Console.WriteLine($"Current card count in deck: {deck.GetCurrentCardCount()}");
-            
-            // Display remaining cards in the stack
-            Console.WriteLine($"Remaining cards in stack: {user.Stack.Cards.Count}");
-            
-            //var controller = new HttpsController();
-            //await controller.StartServer();
+            // Start the server
+            await httpsController.StartServer(); */
         }
-
     }
 }

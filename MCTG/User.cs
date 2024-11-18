@@ -2,37 +2,35 @@
 {
     public class User
     {
-        // Benutzername des Benutzers
+        // Benutzername 
         public string Username { get; set; }
 
-        // Passwort des Benutzers
+        // Passwort
         public string Password { get; set; }
 
         // Stack
         public Stack Stack { get; set; }
 
-        // Deck des Benutzers, das bis zu 10 Karten enthalten kann
+        // Deck 
         public List<Card> Deck { get; set; }
 
-        // Münzen des Benutzers
+        // Münzen 
         public int Coin { get; set; }
 
-        // Elo-Rang des Benutzers
+        // Elo-Rang 
         public string Elo { get; set; }
-
-        // Konstruktor initialisiert ein neues Benutzerobjekt mit Standardwerten
         public User()
         {
-            Coin = 20; // Startmünzen
-            Elo = "Iron"; // Start-Elo-Rang
-            this.Deck = new List<Card>(); // Initialisiert das Deck als leere Liste
-            this.Stack = new Stack(); // Initialisiert den Stapel als neuen Stapel
+            Coin = 20;
+            Elo = "Iron"; 
+            this.Deck = new List<Card>(); //initializierung
+            this.Stack = new Stack(); 
         }
 
-        // Methode, um Kartenpositionen im Stapel zu tauschen
+        // Kartenpositionen im Stapel tauschen
         public void MoveCardtoStack(int firstCardPosition, int secondCardPosition)
         {
-            // Überprüft, ob die angegebenen Positionen gültig sind
+            //prüft, ob die angegebenen Positionen gültig sind
             if (firstCardPosition >= 0 && firstCardPosition < Stack.Cards.Count && secondCardPosition >= 0 &&
                 secondCardPosition < Stack.Cards.Count)
             {
@@ -43,27 +41,25 @@
             }
             else
             {
-                // Gibt eine Fehlermeldung aus, wenn die Positionen ungültig sind
+                // Gibt eine Fehlermeldung aus, wenn position ungültig ist
                 Console.WriteLine("Invalid card position");
             }
         }
-
-        // Methode zum Kauf eines Kartenpakets
+        
         public void BuyPackage()
         {
-            const int cardsPerPackage = 5; // Anzahl der Karten pro Paket
-            const int packCost = 5; // Kosten eines Pakets
+            const int cardsPerPackage = 5;
+            const int packCost = 5;
 
             // Überprüft, ob der Benutzer genug Münzen hat, um ein Paket zu kaufen
             if (Coin >= packCost)
             {
-                Coin -= packCost; // Zieht die Kosten von den Münzen des Benutzers ab
+                Coin -= packCost; // Zieht die Kosten von den Münzen ab
                 Stack.AddRandomCards(cardsPerPackage); // Fügt dem Stapel zufällige Karten hinzu
                 Console.WriteLine("Successfully bought pack");
             }
             else
             {
-                // Gibt eine Fehlermeldung aus, wenn der Benutzer nicht genug Münzen hat
                 Console.WriteLine("Insufficient coins");
             }
         }
@@ -71,9 +67,9 @@
         // Methode zum Hinzufügen von Karten vom Stapel zum Deck
         public void AddCardsToDeck()
         {
-            const int deckSize = 10; // Maximale Größe des Decks
+            const int deckSize = 10;
 
-            // Überprüft, ob das Deck noch Platz für weitere Karten hat
+            // Überprüft, ob das Deck noch Platz hat
             if (Deck.Count < deckSize)
             {
                 // Verschiebt Karten vom Stapel ins Deck, solange Platz im Deck ist
@@ -81,8 +77,8 @@
                 {
                     if (Deck.Count < deckSize)
                     {
-                        Deck.Add(card); // Fügt die Karte dem Deck hinzu
-                        Stack.RemoveCard(card); // Entfernt die Karte vom Stapel
+                        Deck.Add(card);
+                        Stack.RemoveCard(card);
                     }
                     else
                     {
@@ -93,7 +89,6 @@
             }
             else
             {
-                // Gibt eine Fehlermeldung aus, wenn das Deck voll ist
                 Console.WriteLine("Deck Full!");
             }
         }
