@@ -9,15 +9,14 @@ namespace MCTG
         {
             // Create a new game instance and run it
             Game game = new Game();
-            game.CreateGame();
-            game.StartGame();
+            game.StartScreen();
 
-           /* // Additional functionality for server (optional)
-            UserController userController = new UserController();
-            HttpsController httpsController = new HttpsController(userController);
+            /* // Additional functionality for server (optional)
+             UserController userController = new UserController();
+             HttpsController httpsController = new HttpsController(userController);
 
-            // Start the server
-            await httpsController.StartServer(); */
+             // Start the server
+             await httpsController.StartServer(); */
         }
     }
 }
