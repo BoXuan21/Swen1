@@ -13,6 +13,7 @@
         "packagesPath": "C:\\Users\\Bo Xuan Yang\\.nuget\\packages\\",
         "outputPath": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\obj\\",
         "projectStyle": "PackageReference",
+        "UsingMicrosoftNETSdk": false,
         "configFilePaths": [
           "C:\\Users\\Bo Xuan Yang\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"

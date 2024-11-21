@@ -5,33 +5,36 @@ namespace MCTG
 {
     public class UserController
     {
-        private readonly Dictionary<string, string> _userEndpoints = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _userCredentials = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> _userTokens = new Dictionary<string, string>();
 
-        // Add or update user endpoint
-        public void AddOrUpdateUserEndpoint(string userId, string endpoint)
+        public UserController()
         {
-            if (_userEndpoints.ContainsKey(userId))
-            {
-                _userEndpoints[userId] = endpoint;
-                Console.WriteLine($"Endpoint für Benutzer {userId} aktualisiert: {endpoint}");
-            }
-            else
-            {
-                _userEndpoints.Add(userId, endpoint);
-                Console.WriteLine($"Neuer Benutzer hinzugefügt: {userId}, Endpoint: {endpoint}");
-            }
+            // Predefined users for demonstration
+            _userCredentials.Add("kienboec", "daniel");
         }
 
-        // Get user endpoint
-        public string GetUserEndpoint(string userId)
+        // Validate user credentials and generate a token
+        public string ValidateUserCredentials(string username, string password)
         {
-            return _userEndpoints.ContainsKey(userId) ? _userEndpoints[userId] : null;
+            if (_userCredentials.ContainsKey(username) && _userCredentials[username] == password)
+            {
+                // Generate a token if credentials are valid
+                if (!_userTokens.ContainsKey(username))
+                {
+                    _userTokens[username] = $"{username}-mtcgToken";
+                }
+
+                return _userTokens[username];
+            }
+
+            return null; // Invalid credentials
         }
 
-        // Get all user endpoints (for debugging or admin purposes)
-        public Dictionary<string, string> GetAllUserEndpoints()
+        // Get token by username
+        public string GetToken(string username)
         {
-            return new Dictionary<string, string>(_userEndpoints);
+            return _userTokens.ContainsKey(username) ? _userTokens[username] : null;
         }
     }
 }

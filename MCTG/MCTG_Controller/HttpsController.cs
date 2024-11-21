@@ -11,7 +11,7 @@ namespace MCTG
     {
         private readonly UserController _userController;
 
-        //inject userController
+        // Dependency injection of UserController
         public HttpsController(UserController userController)
         {
             _userController = userController;
@@ -20,19 +20,21 @@ namespace MCTG
         public async Task StartServer()
         {
             HttpListener listener = new HttpListener();
-            
-            string url = "http://localhost:5001/";
+
+            // Define the URL for the server
+            string url = "http://localhost:5002/";
             listener.Prefixes.Add(url);
+
 
             try
             {
                 listener.Start();
-                Console.WriteLine($"HTTPS Server gestartet. Listening on {url}");
+                Console.WriteLine($"HTTP Server started. Listening on {url}");
             }
             catch (HttpListenerException ex)
             {
-                Console.WriteLine("Fehler beim Start des Servers. Stelle sicher, dass das SSL-Zertifikat korrekt konfiguriert ist.");
-                Console.WriteLine($"Fehlermeldung: {ex.Message}");
+                Console.WriteLine("Failed to start server. Ensure SSL certificates are configured.");
+                Console.WriteLine($"Error: {ex.Message}");
                 return;
             }
 
@@ -41,54 +43,19 @@ namespace MCTG
                 try
                 {
                     HttpListenerContext context = await listener.GetContextAsync();
-                    Console.WriteLine($"Anfrage empfangen: {context.Request.HttpMethod} {context.Request.Url}");
+                    Console.WriteLine($"Request received: {context.Request.HttpMethod} {context.Request.Url}");
 
-                    if (context.Request.HttpMethod == "POST")
+                    if (context.Request.HttpMethod == "POST" && context.Request.Url.AbsolutePath == "/sessions")
                     {
-                        using (StreamReader reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
-                        {
-                            string content = await reader.ReadToEndAsync();
-                            Console.WriteLine("Empfangene POST-Daten:");
-                            Console.WriteLine(content);
-
-                            try
-                            {
-                                // Parse JSON to extract userId and endpoint
-                                var data = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
-                                if (data != null && data.ContainsKey("userId") && data.ContainsKey("endpoint"))
-                                {
-                                    string userId = data["userId"];
-                                    string endpoint = data["endpoint"];
-
-                                    // Store in UserController
-                                    _userController.AddOrUpdateUserEndpoint(userId, endpoint);
-
-                                    string responseString = "Benutzer erfolgreich hinzugefügt oder aktualisiert.";
-                                    byte[] buffer = Encoding.UTF8.GetBytes(responseString);
-                                    context.Response.ContentLength64 = buffer.Length;
-                                    context.Response.ContentType = "text/plain";
-                                    await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                                }
-                                else
-                                {
-                                    throw new Exception("Ungültige Daten. userId und endpoint erforderlich.");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                                string errorResponse = $"Fehler beim Verarbeiten der Daten: {ex.Message}";
-                                byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
-                                context.Response.ContentLength64 = buffer.Length;
-                                await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                            }
-                        }
+                        // Handle user login
+                        await HandleLoginRequest(context);
                     }
                     else
                     {
+                        // Handle unsupported methods
                         context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                        string errorResponse = "Nur POST-Anfragen sind erlaubt.";
-                        byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
+                        string response = "Only POST requests are allowed on this endpoint.";
+                        byte[] buffer = Encoding.UTF8.GetBytes(response);
                         context.Response.ContentLength64 = buffer.Length;
                         await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                     }
@@ -97,7 +64,60 @@ namespace MCTG
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Fehler bei der Verarbeitung der Anfrage: {ex.Message}");
+                    Console.WriteLine($"Error handling request: {ex.Message}");
+                }
+            }
+        }
+
+        private async Task HandleLoginRequest(HttpListenerContext context)
+        {
+            using (StreamReader reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
+            {
+                try
+                {
+                    // Read and deserialize the request body
+                    string requestBody = await reader.ReadToEndAsync();
+                    var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+
+                    if (data != null && data.ContainsKey("Username") && data.ContainsKey("Password"))
+                    {
+                        string username = data["Username"];
+                        string password = data["Password"];
+
+                        // Validate user credentials
+                        string token = _userController.ValidateUserCredentials(username, password);
+
+                        if (token != null)
+                        {
+                            // Respond with the generated token
+                            context.Response.StatusCode = (int)HttpStatusCode.OK;
+                            byte[] buffer = Encoding.UTF8.GetBytes(token);
+                            context.Response.ContentLength64 = buffer.Length;
+                            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                        }
+                        else
+                        {
+                            // Invalid credentials
+                            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                            string errorResponse = "Invalid username or password.";
+                            byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
+                            context.Response.ContentLength64 = buffer.Length;
+                            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                        }
+                    }
+                    else
+                    {
+                        // Missing fields
+                        throw new Exception("Missing Username or Password in the request body.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                    string errorResponse = $"Error processing request: {ex.Message}";
+                    byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
+                    context.Response.ContentLength64 = buffer.Length;
+                    await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 }
             }
         }
