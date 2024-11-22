@@ -38,10 +38,8 @@ namespace MCTG
 
                     case "2":
                         Console.Clear();
-                        Console.WriteLine("Welcome to the Shop! (Placeholder)");
-                        Console.WriteLine("Here you can buy cards. (Feature coming soon!)");
-                        Console.WriteLine("Press any key to return to the main menu...");
-                        Console.ReadKey();
+                        Console.WriteLine("Welcome to the Shop!");
+                        BuyCards();
                         break;
 
                     case "3":
@@ -72,8 +70,8 @@ namespace MCTG
             user2 = new User();
             
             //stack wird mit karten gefüllt
-            user1.Stack.AddRandomCards(40);
-            user2.Stack.AddRandomCards(40);
+            user1.Stack.AddRandomCards(30);
+            user2.Stack.AddRandomCards(30);
             
             deck1 = new Deck(user1.Stack);
             deck2 = new Deck(user2.Stack);
@@ -94,8 +92,8 @@ namespace MCTG
 {
     int user1Wins = 0;
     int user2Wins = 0;
-    int maxRounds = 100; // Maximum number of rounds
-    int currentRound = 0; // Tracks the current round
+    int maxRounds = 100;
+    int currentRound = 0; 
 
     while (deck1.GetCurrentCardCount() > 0 && deck2.GetCurrentCardCount() > 0 && currentRound < maxRounds)
     {
@@ -180,6 +178,32 @@ namespace MCTG
                 baseDamage *= 0.5;
 
             return baseDamage;
+        }
+
+        public void BuyCards()
+        {
+            Console.WriteLine("\nBuying cards for Deck 1 or 2?");
+            Console.WriteLine("\nEnter 1 or 2 to buy cards for deck 1 or 2?");
+            string chooseDeck = Console.ReadLine();
+            switch (chooseDeck)
+            {
+                case "1":
+                    Console.WriteLine("Choosing Deck 1 to buy a package = 5 COINS");
+                    user1.BuyPackage();
+                    break;
+                case "2":
+                    Console.WriteLine("Choosing Deck 2 to buy a package = 5 COINS");
+                    user2.BuyPackage();
+                    break;
+                case "4":
+                    Console.WriteLine("press any Key to exit to menu");
+                    Console.ReadKey();
+                    break;
+                    
+            }
+            {
+                
+            }
         }
     }
 }

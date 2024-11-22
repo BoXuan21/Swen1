@@ -1,125 +1,81 @@
 ﻿using System;
-using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
+using System.Threading;
 
-namespace MCTG
+public class HttpController
 {
-    public class HttpsController
+    private readonly int _port;
+
+    public HttpController(int port)
     {
-        private readonly UserController _userController;
+        _port = port;
+    }
 
-        // Dependency injection of UserController
-        public HttpsController(UserController userController)
+    public void Start()
+    {
+        TcpListener listener = new TcpListener(IPAddress.Any, _port);
+        Console.WriteLine($"Starting HTTP server on port {_port}...");
+        listener.Start();
+
+        while (true)
         {
-            _userController = userController;
+            TcpClient client = listener.AcceptTcpClient();
+            Console.WriteLine("Client connected!");
+
+            // Handle each client connection in a separate thread
+            ThreadPool.QueueUserWorkItem(HandleClient, client);
         }
+    }
 
-        public async Task StartServer()
+    private void HandleClient(object clientObj)
+    {
+        TcpClient client = (TcpClient)clientObj;
+
+        try
         {
-            HttpListener listener = new HttpListener();
-
-            // Define the URL for the server
-            string url = "http://localhost:5002/";
-            listener.Prefixes.Add(url);
-
-
-            try
+            using (var stream = client.GetStream())
             {
-                listener.Start();
-                Console.WriteLine($"HTTP Server started. Listening on {url}");
-            }
-            catch (HttpListenerException ex)
-            {
-                Console.WriteLine("Failed to start server. Ensure SSL certificates are configured.");
-                Console.WriteLine($"Error: {ex.Message}");
-                return;
-            }
+                // Read the incoming request
+                byte[] buffer = new byte[1024];
+                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                string request = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-            while (true)
-            {
-                try
+                Console.WriteLine("Request received:");
+                Console.WriteLine(request);
+
+                // Process the POST request
+                if (request.StartsWith("POST"))
                 {
-                    HttpListenerContext context = await listener.GetContextAsync();
-                    Console.WriteLine($"Request received: {context.Request.HttpMethod} {context.Request.Url}");
+                    string[] parts = request.Split(new[] { "\r\n\r\n" }, StringSplitOptions.None);
+                    string body = parts.Length > 1 ? parts[1] : string.Empty;
 
-                    if (context.Request.HttpMethod == "POST" && context.Request.Url.AbsolutePath == "/sessions")
-                    {
-                        // Handle user login
-                        await HandleLoginRequest(context);
-                    }
-                    else
-                    {
-                        // Handle unsupported methods
-                        context.Response.StatusCode = (int)HttpStatusCode.MethodNotAllowed;
-                        string response = "Only POST requests are allowed on this endpoint.";
-                        byte[] buffer = Encoding.UTF8.GetBytes(response);
-                        context.Response.ContentLength64 = buffer.Length;
-                        await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    }
+                    Console.WriteLine("POST Body:");
+                    Console.WriteLine(body);
 
-                    context.Response.Close();
+                    // Send an HTTP response
+                    string response = "HTTP/1.1 200 OK\r\n" +
+                                      "Content-Type: text/plain\r\n" +
+                                      "Content-Length: 13\r\n" +
+                                      "\r\n" +
+                                      "Test Working";
+                    byte[] responseBytes = Encoding.UTF8.GetBytes(response);
+                    stream.Write(responseBytes, 0, responseBytes.Length);
                 }
-                catch (Exception ex)
+                else
                 {
-                    Console.WriteLine($"Error handling request: {ex.Message}");
+                    Console.WriteLine("Unsupported request.");
                 }
             }
         }
-
-        private async Task HandleLoginRequest(HttpListenerContext context)
+        catch (Exception ex)
         {
-            using (StreamReader reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding))
-            {
-                try
-                {
-                    // Read and deserialize the request body
-                    string requestBody = await reader.ReadToEndAsync();
-                    var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
-
-                    if (data != null && data.ContainsKey("Username") && data.ContainsKey("Password"))
-                    {
-                        string username = data["Username"];
-                        string password = data["Password"];
-
-                        // Validate user credentials
-                        string token = _userController.ValidateUserCredentials(username, password);
-
-                        if (token != null)
-                        {
-                            // Respond with the generated token
-                            context.Response.StatusCode = (int)HttpStatusCode.OK;
-                            byte[] buffer = Encoding.UTF8.GetBytes(token);
-                            context.Response.ContentLength64 = buffer.Length;
-                            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                        }
-                        else
-                        {
-                            // Invalid credentials
-                            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
-                            string errorResponse = "Invalid username or password.";
-                            byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
-                            context.Response.ContentLength64 = buffer.Length;
-                            await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                        }
-                    }
-                    else
-                    {
-                        // Missing fields
-                        throw new Exception("Missing Username or Password in the request body.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    string errorResponse = $"Error processing request: {ex.Message}";
-                    byte[] buffer = Encoding.UTF8.GetBytes(errorResponse);
-                    context.Response.ContentLength64 = buffer.Length;
-                    await context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                }
-            }
+            Console.WriteLine($"Error handling client: {ex.Message}");
+        }
+        finally
+        {
+            client.Close();
         }
     }
 }

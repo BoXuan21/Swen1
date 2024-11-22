@@ -5,18 +5,16 @@ namespace MCTG
 {
     class Program
     {
-        public static async Task Main(string[] args)
+        public static void Main(string[] args)
         {
-            // Create a new game instance and run it
-            //Game game = new Game();
-            //game.StartScreen();
+            //Create a new game instance and run it
+            Game game = new Game();
+            game.StartScreen();
 
-             // Additional functionality for server (optional)
-             UserController userController = new UserController();
-             HttpsController httpsController = new HttpsController(userController);
-
-             // Start the server
-             await httpsController.StartServer();
+            //int port = 10001;
+            
+            //var httpController = new HttpController(port);
+            //httpController.Start();
         }
     }
 }

@@ -23,12 +23,11 @@
         {
             Coin = 20;
             Elo = "Iron"; 
-            this.Deck = new List<Card>(); //initializierung
+            this.Deck = new List<Card>();
             this.Stack = new Stack(); 
         }
 
-        // Kartenpositionen im Stapel tauschen
-        public void MoveCardtoStack(int firstCardPosition, int secondCardPosition)
+        public void AddCardtoStack(int firstCardPosition, int secondCardPosition) // wird noch nicht benutzt, nur nachdem man ein Package gekauft hat
         {
             //prüft, ob die angegebenen Positionen gültig sind
             if (firstCardPosition >= 0 && firstCardPosition < Stack.Cards.Count && secondCardPosition >= 0 &&
@@ -54,8 +53,8 @@
             // Überprüft, ob der Benutzer genug Münzen hat, um ein Paket zu kaufen
             if (Coin >= packCost)
             {
-                Coin -= packCost; // Zieht die Kosten von den Münzen ab
-                Stack.AddRandomCards(cardsPerPackage); // Fügt dem Stapel zufällige Karten hinzu
+                Coin -= packCost;
+                Stack.AddRandomCards(cardsPerPackage);
                 Console.WriteLine("Successfully bought pack");
             }
             else
@@ -63,8 +62,7 @@
                 Console.WriteLine("Insufficient coins");
             }
         }
-
-        // Methode zum Hinzufügen von Karten vom Stapel zum Deck
+        
         public void AddCardsToDeck()
         {
             const int deckSize = 10;
