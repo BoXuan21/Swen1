@@ -22,5 +22,5 @@
             Damage = damage;
             Element = element;
         }
-    }
+    }   
 }

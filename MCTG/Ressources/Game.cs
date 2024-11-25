@@ -4,14 +4,26 @@ namespace MCTG
 {
     public class Game
     {
-        //user und deck initialisieren
         private User user1;
         private User user2;
         private Deck deck1;
         private Deck deck2;
 
+        private UserController userController;
+
+        public Game()
+        {
+            userController = new UserController();
+        }
+
         public void StartScreen()
         {
+            if (!userController.Login())
+            {
+                Console.WriteLine("Login failed. Exiting game...");
+                return;
+            }
+
             bool exitGame = false;
 
             while (!exitGame)
@@ -44,9 +56,7 @@ namespace MCTG
 
                     case "3":
                         Console.Clear();
-                        Console.WriteLine("Trade Cards! (Placeholder)");
-                        Console.WriteLine("Here you can trade cards with other players. (Feature coming soon!)");
-                        Console.WriteLine("Press any key to return to the main menu...");
+                        BuyCards();
                         Console.ReadKey();
                         break;
 
@@ -64,19 +74,21 @@ namespace MCTG
                 }
             }
         }
+
         public void CreateGame()
         {
+            // Initialize users and decks
             user1 = new User();
             user2 = new User();
-            
-            //stack wird mit karten gefüllt
+
+            // Fill stacks with random cards
             user1.Stack.AddRandomCards(30);
             user2.Stack.AddRandomCards(30);
-            
+
             deck1 = new Deck(user1.Stack);
             deck2 = new Deck(user2.Stack);
-            
-            //display deck
+
+            // Display deck information
             Console.WriteLine("User 1's Deck:");
             deck1.DisplayDeck();
             Console.WriteLine($"Current card count in User 1's deck: {deck1.GetCurrentCardCount()}");
@@ -89,75 +101,74 @@ namespace MCTG
         }
 
         public void StartGame()
-{
-    int user1Wins = 0;
-    int user2Wins = 0;
-    int maxRounds = 100;
-    int currentRound = 0; 
-
-    while (deck1.GetCurrentCardCount() > 0 && deck2.GetCurrentCardCount() > 0 && currentRound < maxRounds)
-    {
-        currentRound++;
-        Console.WriteLine($"Round {currentRound}");
-
-        // Retrieve the top cards from each deck
-        Card card1 = deck1.GetTopCard();
-        Card card2 = deck2.GetTopCard();
-
-        Console.WriteLine($"User 1 plays: {card1.Name} ({card1.Element}, Damage: {card1.Damage})");
-        Console.WriteLine($"User 2 plays: {card2.Name} ({card2.Element}, Damage: {card2.Damage})");
-
-        // Calculate damage with type effectiveness
-        double damage1 = CalculateEffectiveDamage(card1, card2);
-        double damage2 = CalculateEffectiveDamage(card2, card1);
-
-        Console.WriteLine($"User 1's card damage: {damage1}");
-        Console.WriteLine($"User 2's card damage: {damage2}");
-
-        // Determine the round winner
-        if (damage1 > damage2)
         {
-            Console.WriteLine("User 1 wins this round!");
-            deck2.RemoveTopCard(); // Remove defeated card from deck2
-            deck1.AddCard(card2);  // Add defeated card to deck1
-            user1Wins++;
+            int user1Wins = 0;
+            int user2Wins = 0;
+            int maxRounds = 100;
+            int currentRound = 0;
+
+            while (deck1.GetCurrentCardCount() > 0 && deck2.GetCurrentCardCount() > 0 && currentRound < maxRounds)
+            {
+                currentRound++;
+                Console.WriteLine($"Round {currentRound}");
+
+                // Retrieve the top cards from each deck
+                Card card1 = deck1.GetTopCard();
+                Card card2 = deck2.GetTopCard();
+
+                Console.WriteLine($"User 1 plays: {card1.Name} ({card1.Element}, Damage: {card1.Damage})");
+                Console.WriteLine($"User 2 plays: {card2.Name} ({card2.Element}, Damage: {card2.Damage})");
+
+                // Calculate damage with type effectiveness
+                double damage1 = CalculateEffectiveDamage(card1, card2);
+                double damage2 = CalculateEffectiveDamage(card2, card1);
+
+                Console.WriteLine($"User 1's card damage: {damage1}");
+                Console.WriteLine($"User 2's card damage: {damage2}");
+
+                // Determine the round winner
+                if (damage1 > damage2)
+                {
+                    Console.WriteLine("User 1 wins this round!");
+                    deck2.RemoveTopCard(); // Remove defeated card from deck2
+                    deck1.AddCard(card2);  // Add defeated card to deck1
+                    user1Wins++;
+                }
+                else if (damage2 > damage1)
+                {
+                    Console.WriteLine("User 2 wins this round!");
+                    deck1.RemoveTopCard(); // Remove defeated card from deck1
+                    deck2.AddCard(card1);  // Add defeated card to deck2
+                    user2Wins++;
+                }
+                else
+                {
+                    Console.WriteLine("It's a draw! No cards are removed.");
+                }
+
+                Console.WriteLine($"Current Score -> User 1: {user1Wins}, User 2: {user2Wins}\n");
+            }
+
+            // Determine the winner
+            if (deck1.GetCurrentCardCount() == 0)
+                Console.WriteLine("User 2 wins the game!");
+            else if (deck2.GetCurrentCardCount() == 0)
+                Console.WriteLine("User 1 wins the game!");
+            else if (currentRound >= maxRounds)
+            {
+                Console.WriteLine("Maximum rounds reached!");
+                if (user1Wins > user2Wins)
+                    Console.WriteLine("User 1 wins by score!");
+                else if (user2Wins > user1Wins)
+                    Console.WriteLine("User 2 wins by score!");
+                else
+                    Console.WriteLine("It's a tie!");
+            }
+
+            // Pause before returning to the main menu
+            Console.WriteLine("\nGame over! Press any key to return to the main menu...");
+            Console.ReadKey();
         }
-        else if (damage2 > damage1)
-        {
-            Console.WriteLine("User 2 wins this round!");
-            deck1.RemoveTopCard(); // Remove defeated card from deck1
-            deck2.AddCard(card1);  // Add defeated card to deck2
-            user2Wins++;
-        }
-        else
-        {
-            Console.WriteLine("It's a draw! No cards are removed.");
-        }
-
-        Console.WriteLine($"Current Score -> User 1: {user1Wins}, User 2: {user2Wins}\n");
-    }
-
-    // Determine the winner
-    if (deck1.GetCurrentCardCount() == 0)
-        Console.WriteLine("User 2 wins the game!");
-    else if (deck2.GetCurrentCardCount() == 0)
-        Console.WriteLine("User 1 wins the game!");
-    else if (currentRound >= maxRounds)
-    {
-        Console.WriteLine("Maximum rounds reached!");
-        if (user1Wins > user2Wins)
-            Console.WriteLine("User 1 wins by score!");
-        else if (user2Wins > user1Wins)
-            Console.WriteLine("User 2 wins by score!");
-        else
-            Console.WriteLine("It's a tie!");
-    }
-
-    // Pause before returning to the main menu
-    Console.WriteLine("\nGame over! Press any key to return to the main menu...");
-    Console.ReadKey();
-}
-
 
         private double CalculateEffectiveDamage(Card attackingCard, Card defendingCard)
         {
@@ -196,13 +207,9 @@ namespace MCTG
                     user2.BuyPackage();
                     break;
                 case "4":
-                    Console.WriteLine("press any Key to exit to menu");
+                    Console.WriteLine("Press any key to exit to menu");
                     Console.ReadKey();
                     break;
-                    
-            }
-            {
-                
             }
         }
     }
