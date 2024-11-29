@@ -1,0 +1,15 @@
+<!-- home.component.html -->
+<div class="container">
+    <div class="grid">
+      @for (service of services; track service.title) {
+        <div class="card">
+          <img [src]="service.image" [alt]="service.title"/>
+          <div class="content">
+            <h2>{{service.title}}</h2>
+            <p>{{service.description}}</p>
+            <button>Details</button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>

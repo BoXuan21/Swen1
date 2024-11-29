@@ -1,0 +1,33 @@
+.navbar {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 1); /* Start opaque */
+    width: 100vw;
+    margin: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000; /* Ensure the navbar is above other content */
+    transition: background 0.3s; /* Smooth transition for the background */
+}
+
+.navbar.scrolled {
+    background: rgba(255, 255, 255, 0.7); /* Becomes transparent on scroll */
+}
+
+.nav-links {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+a {
+    text-decoration: none;
+    color: black;
+    font-size: 1.1rem;
+    transition: color 0.3s;
+}
+
+a:hover {
+    color: gold;
+}
