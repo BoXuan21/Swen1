@@ -1,0 +1,30 @@
+/* Impressum.css */
+.impressum-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 100px 20px 40px;
+    font-family: -apple-system, system-ui, sans-serif;
+  }
+  
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  section {
+    margin-bottom: 2rem;
+  }
+  
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    line-height: 1.6;
+    margin-bottom: 0.5rem;
+    color: #333;
+  }
+  .container {
+    padding-bottom: 100px; /* Adjust based on footer height */
+  }

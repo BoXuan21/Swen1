@@ -1,0 +1,54 @@
+/* Footer styles */
+.footer {
+    background: rgb(111, 17, 17);
+    color: white;
+    padding: 0.5rem;
+    width: 100vw;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+  }
+  
+  .footer-content {
+    display: flex;
+    justify-content: center;
+    gap: 1rem; /* Decreased the gap between contact and social links */
+    align-items: center;
+  }
+  
+  /* Contact section styles */
+  .contact p, .contact h3 {
+    color: white;
+    display: inline;
+    font-size: 0.8rem;
+    margin: 0 0.5rem;
+  }
+  
+  /* Social media link styles */
+  .social-links {
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Adjusted the spacing of the social icon */
+  .social-icon {
+    width: 30px;
+    height: 30px;
+    margin-left: 0.5rem; /* Reduced spacing between icon and text */
+    cursor: pointer;
+    transition: transform 0.3s ease; /* Smooth transition for scaling effect */
+  }
+  
+  /* Hover effect for the social media icon */
+  .social-icon:hover {
+    opacity: 0.7;
+    transform: scale(1.2); /* Increase size by 20% */
+  }
+  
+  /* Copyright section styles */
+  .copyright {
+    font-size: 0.7rem;
+    text-align: center;
+    margin-top: 0.2rem;
+  }
+  

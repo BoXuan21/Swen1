@@ -1,0 +1,85 @@
+/* Container for the home page */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    padding-top: 100px;
+    padding-bottom: 100px;
+    background-color: #ffffff; /* Einheitlich */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* Grid layout */
+  .grid {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px; /* Increased gap between boxes */
+    flex-wrap: wrap;
+  }
+  
+  /* Styling for each card */
+  .card {
+    background: #ffffff; /* White background */
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 0.3s, box-shadow 0.3s; /* Smooth transition */
+    width: 270px;
+    border: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Light shadow for better visibility */
+  }
+  
+  /* Card hover effect */
+  .card:hover {
+    transform: translateY(-10px); /* Hover effect: move up */
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Darker shadow on hover */
+  }
+  
+  /* Image styling inside the card */
+  .card img {
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+  }
+  
+  /* Content inside the card */
+  .content {
+    padding: 20px;
+  }
+  
+  /* Title inside the card */
+  .content h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+  
+  /* Description text inside the card */
+  .content p {
+    color: #666;
+    margin-bottom: 20px;
+  }
+  
+  /* Button inside the card */
+  .content button {
+    background: #2563eb;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  /* Button hover effect */
+  .content button:hover {
+    background: #1d4ed8;
+  }
+  
+  /* Media query for responsiveness on smaller screens */
+  @media (max-width: 768px) {
+    .grid {
+      flex-direction: column; /* Stack items in one column on small screens */
+    }
+  }
+  

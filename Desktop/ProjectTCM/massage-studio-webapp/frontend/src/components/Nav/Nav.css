@@ -1,0 +1,52 @@
+/* Nav.css */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: rgb(111, 17, 17);
+    padding: 0.5rem;
+ }
+ 
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.admin-link {
+    position: absolute;
+    right: 0;
+}
+
+.logo {
+    height: 50px;
+    transition: all 0.3s;
+ }
+ 
+ .logo:hover {
+    height: 55px;
+ }
+
+.nav-links a, .admin-link a {
+    color: white;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+.nav-links a:not(.logo-link):hover, 
+.admin-link a:hover {
+    color: gold;
+    font-size: 1.2rem;
+}

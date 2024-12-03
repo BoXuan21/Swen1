@@ -1,0 +1,93 @@
+/* Container for the login form */
+.login-container {
+    display: flex;
+    justify-content: center; /* Horizontal center */
+    align-items: center; /* Vertical center */
+    min-height: 100vh; /* Full screen height */
+    background: #ffffff;
+    padding: 20px;
+  }
+  
+  /* Styling for the form */
+  .login-form {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+  }
+  
+  /* Heading styling */
+  h2 {
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 1.5rem;
+  }
+  
+  /* Container for individual form inputs */
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  
+  /* Input field styling */
+  input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    color: black;
+    background: white;
+    box-sizing: border-box;
+  }
+  
+  /* Placeholder color */
+  input::placeholder {
+    color: #888;
+  }
+  
+  /* Container for the password input and the show password icon */
+  .input-container {
+    position: relative;
+    width: 100%;
+  }
+  
+  /* Show password icon styling */
+  .show-password {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+  }
+  
+  /* Hover effect for the show password icon */
+  .show-password:hover {
+    opacity: 0.7; /* Slightly fade the icon when hovered */
+  }
+  
+  /* Submit button styling */
+  button {
+    width: 100%;
+    padding: 0.75rem;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  
+  /* Button hover effect */
+  button:hover {
+    background: #1d4ed8;
+  }
+  
+  /* Optional: Adding padding to the container to prevent footer overlap */
+  .container {
+    padding-bottom: 100px; /* Adjust based on footer height */
+  }
+  
