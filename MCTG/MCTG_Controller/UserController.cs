@@ -1,20 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Threading.Tasks;
 
 namespace MCTG
 {
     public class UserController
     {
-        private Dictionary<string, string> userCredentials;
+        private readonly DatabaseController _db;
 
         public UserController()
         {
-            userCredentials = new Dictionary<string, string>();
-            LoadUserCredentials();
+            _db = new DatabaseController();
         }
 
-        public bool Login()
+        public async Task<User> Login()
         {
             Console.Clear();
             Console.WriteLine("Welcome to MCTG Login!");
@@ -35,11 +34,12 @@ namespace MCTG
                         Console.Write("Enter your password: ");
                         string password = Console.ReadLine();
 
-                        if (AuthenticateUser(username, password))
+                        var user = await _db.GetUser(username, password);
+                        if (user != null)
                         {
                             Console.WriteLine("Login successful! Press any key to continue...");
                             Console.ReadKey();
-                            return true;
+                            return user;
                         }
                         else
                         {
@@ -48,11 +48,11 @@ namespace MCTG
                         break;
 
                     case "2":
-                        RegisterUser();
+                        await RegisterUser();
                         break;
 
                     case "3":
-                        return false;
+                        return null;
 
                     default:
                         Console.WriteLine("Invalid choice. Please try again.");
@@ -61,57 +61,41 @@ namespace MCTG
             }
         }
 
-        private void RegisterUser()
+        private async Task RegisterUser()
         {
             Console.WriteLine("Register a new account.");
             Console.Write("Enter a username: ");
             string username = Console.ReadLine();
-
-            if (userCredentials.ContainsKey(username))
-            {
-                Console.WriteLine("Username already exists. Please try a different username.");
-                return;
-            }
-
             Console.Write("Enter a password: ");
             string password = Console.ReadLine();
-            userCredentials[username] = password;
 
-            SaveUserCredentials();
-            Console.WriteLine("Registration successful!");
-        }
-
-        private bool AuthenticateUser(string username, string password)
-        {
-            return userCredentials.ContainsKey(username) && userCredentials[username] == password;
-        }
-
-        private void LoadUserCredentials()
-        {
-            string filePath = "userCredentials.txt";
-
-            if (File.Exists(filePath))
+            var newUser = new User
             {
-                foreach (var line in File.ReadAllLines(filePath))
-                {
-                    var parts = line.Split(':');
-                    if (parts.Length == 2)
-                        userCredentials[parts[0]] = parts[1];
-                }
+                Username = username,
+                Password = password,
+                Coin = 20,
+                Elo = "Iron"
+            };
+
+            bool success = await _db.CreateUser(username, password);
+            if (success)
+            {
+                Console.WriteLine("Registration successful! You can now log in.");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey();
+            }
+            else
+            {
+                Console.WriteLine("Username already exists. Please try a different username.");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey();
             }
         }
 
-        private void SaveUserCredentials()
+        private async Task<bool> AuthenticateUser(string username, string password)
         {
-            string filePath = "userCredentials.txt";
-
-            using (StreamWriter writer = new StreamWriter(filePath))
-            {
-                foreach (var credential in userCredentials)
-                {
-                    writer.WriteLine($"{credential.Key}:{credential.Value}");
-                }
-            }
+            var user = await _db.GetUser(username, password);
+            return user != null;
         }
     }
 }

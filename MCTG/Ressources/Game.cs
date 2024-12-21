@@ -1,35 +1,42 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace MCTG
 {
     public class Game
     {
+        private readonly DatabaseController _db;
         private User user1;
         private User user2;
         private Deck deck1;
         private Deck deck2;
-
-        private UserController userController;
+        private readonly UserController userController;
 
         public Game()
         {
+            _db = new DatabaseController();
             userController = new UserController();
+            // Initialize database on startup
+            _db.InitializeDatabase().Wait();
         }
 
-        public void StartScreen()
+        public async Task StartScreen()
         {
-            if (!userController.Login())
+            // Get logged in user
+            user1 = await userController.Login();
+            if (user1 == null)
             {
                 Console.WriteLine("Login failed. Exiting game...");
                 return;
             }
 
             bool exitGame = false;
-
             while (!exitGame)
             {
                 Console.Clear();
-                Console.WriteLine("Welcome to MCTG!");
+                Console.WriteLine($"Welcome to MCTG, {user1.Username}!");
+                Console.WriteLine($"Your coins: {user1.Coin}");
                 Console.WriteLine("Please select an option:");
                 Console.WriteLine("1. Start Game (1vs1)");
                 Console.WriteLine("2. Shop");
@@ -44,19 +51,20 @@ namespace MCTG
                     case "1":
                         Console.Clear();
                         Console.WriteLine("Starting a new game...");
-                        CreateGame();
-                        StartGame();
+                        await CreateGame();
+                        await StartGame();
                         break;
 
                     case "2":
                         Console.Clear();
                         Console.WriteLine("Welcome to the Shop!");
-                        BuyCards();
+                        await BuyCards();
                         break;
 
                     case "3":
                         Console.Clear();
-                        BuyCards();
+                        // Trading functionality to be implemented
+                        Console.WriteLine("Trading feature coming soon!");
                         Console.ReadKey();
                         break;
 
@@ -75,32 +83,54 @@ namespace MCTG
             }
         }
 
-        public void CreateGame()
+        public async Task CreateGame()
         {
-            // Initialize users and decks
-            user1 = new User();
-            user2 = new User();
+            // Initialize computer opponent
+            user2 = new User { Username = "Computer", Id = -1 };
 
-            // Fill stacks with random cards
-            user1.Stack.AddRandomCards(30);
+            // Get user1's cards from database
+            var existingCards = await _db.GetUserCards(user1.Id);
+            
+            // Initialize user1's stack with existing cards or new ones if none exist
+            user1.Stack = new Stack();
+            if (existingCards.Count == 0)
+            {
+                Console.WriteLine("Initializing new cards for first-time player...");
+                user1.Stack.AddRandomCards(30);
+                
+                // Save new cards to database
+                foreach (var card in user1.Stack.Cards)
+                {
+                    await _db.AddCardToUser(user1.Id, card);
+                }
+            }
+            else
+            {
+                Console.WriteLine("Loading existing cards from database...");
+                user1.Stack.Cards = existingCards;
+            }
+
+            // Initialize AI opponent's stack
+            user2.Stack = new Stack();
             user2.Stack.AddRandomCards(30);
 
+            // Create decks from stacks
             deck1 = new Deck(user1.Stack);
             deck2 = new Deck(user2.Stack);
 
             // Display deck information
-            Console.WriteLine("User 1's Deck:");
+            Console.WriteLine($"\n{user1.Username}'s Deck:");
             deck1.DisplayDeck();
-            Console.WriteLine($"Current card count in User 1's deck: {deck1.GetCurrentCardCount()}");
-            Console.WriteLine($"Remaining cards in User 1's stack: {user1.Stack.Cards.Count}\n");
+            Console.WriteLine($"Current card count in {user1.Username}'s deck: {deck1.GetCurrentCardCount()}");
+            Console.WriteLine($"Remaining cards in {user1.Username}'s stack: {user1.Stack.Cards.Count}\n");
 
-            Console.WriteLine("User 2's Deck:");
+            Console.WriteLine($"{user2.Username}'s Deck:");
             deck2.DisplayDeck();
-            Console.WriteLine($"Current card count in User 2's deck: {deck2.GetCurrentCardCount()}");
-            Console.WriteLine($"Remaining cards in User 2's stack: {user2.Stack.Cards.Count}\n");
+            Console.WriteLine($"Current card count in {user2.Username}'s deck: {deck2.GetCurrentCardCount()}");
+            Console.WriteLine($"Remaining cards in {user2.Username}'s stack: {user2.Stack.Cards.Count}\n");
         }
 
-        public void StartGame()
+        public async Task StartGame()
         {
             int user1Wins = 0;
             int user2Wins = 0;
@@ -110,71 +140,64 @@ namespace MCTG
             while (deck1.GetCurrentCardCount() > 0 && deck2.GetCurrentCardCount() > 0 && currentRound < maxRounds)
             {
                 currentRound++;
-                Console.WriteLine($"Round {currentRound}");
+                Console.WriteLine($"\nRound {currentRound}");
 
-                // Retrieve the top cards from each deck
                 Card card1 = deck1.GetTopCard();
                 Card card2 = deck2.GetTopCard();
 
-                Console.WriteLine($"User 1 plays: {card1.Name} ({card1.Element}, Damage: {card1.Damage})");
-                Console.WriteLine($"User 2 plays: {card2.Name} ({card2.Element}, Damage: {card2.Damage})");
+                Console.WriteLine($"{user1.Username} plays: {card1.Name} ({card1.Element}, Damage: {card1.Damage})");
+                Console.WriteLine($"{user2.Username} plays: {card2.Name} ({card2.Element}, Damage: {card2.Damage})");
 
-                // Calculate damage with type effectiveness
                 double damage1 = CalculateEffectiveDamage(card1, card2);
                 double damage2 = CalculateEffectiveDamage(card2, card1);
 
-                Console.WriteLine($"User 1's card damage: {damage1}");
-                Console.WriteLine($"User 2's card damage: {damage2}");
+                Console.WriteLine($"{user1.Username}'s card damage: {damage1}");
+                Console.WriteLine($"{user2.Username}'s card damage: {damage2}");
 
-                // Determine the round winner
                 if (damage1 > damage2)
                 {
-                    Console.WriteLine("User 1 wins this round!");
-                    deck2.RemoveTopCard(); // Remove defeated card from deck2
-                    deck1.AddCard(card2);  // Add defeated card to deck1
+                    Console.WriteLine($"{user1.Username} wins this round!");
+                    deck2.RemoveTopCard();
+                    deck1.AddCard(card2);
+                    // Save won card to database
+                    await _db.AddCardToUser(user1.Id, card2);
                     user1Wins++;
                 }
                 else if (damage2 > damage1)
                 {
-                    Console.WriteLine("User 2 wins this round!");
-                    deck1.RemoveTopCard(); // Remove defeated card from deck1
-                    deck2.AddCard(card1);  // Add defeated card to deck2
+                    Console.WriteLine($"{user2.Username} wins this round!");
+                    deck1.RemoveTopCard();
+                    deck2.AddCard(card1);
                     user2Wins++;
                 }
                 else
                 {
-                    Console.WriteLine("It's a draw! No cards are removed.");
+                    Console.WriteLine("It's a draw! No cards are exchanged.");
                 }
 
-                Console.WriteLine($"Current Score -> User 1: {user1Wins}, User 2: {user2Wins}\n");
+                Console.WriteLine($"Current Score -> {user1.Username}: {user1Wins}, {user2.Username}: {user2Wins}");
             }
 
-            // Determine the winner
-            if (deck1.GetCurrentCardCount() == 0)
-                Console.WriteLine("User 2 wins the game!");
-            else if (deck2.GetCurrentCardCount() == 0)
-                Console.WriteLine("User 1 wins the game!");
-            else if (currentRound >= maxRounds)
-            {
-                Console.WriteLine("Maximum rounds reached!");
-                if (user1Wins > user2Wins)
-                    Console.WriteLine("User 1 wins by score!");
-                else if (user2Wins > user1Wins)
-                    Console.WriteLine("User 2 wins by score!");
-                else
-                    Console.WriteLine("It's a tie!");
-            }
+            // Record battle result
+            var winnerId = user1Wins > user2Wins ? user1.Id : user2.Id;
+            await _db.RecordBattle(user1.Id, user2.Id, winnerId);
 
-            // Pause before returning to the main menu
+            // Display final result
+            if (deck1.GetCurrentCardCount() == 0 || user2Wins > user1Wins)
+                Console.WriteLine($"\n{user2.Username} wins the game!");
+            else if (deck2.GetCurrentCardCount() == 0 || user1Wins > user2Wins)
+                Console.WriteLine($"\n{user1.Username} wins the game!");
+            else
+                Console.WriteLine("\nIt's a tie!");
+
             Console.WriteLine("\nGame over! Press any key to return to the main menu...");
             Console.ReadKey();
         }
 
-        private double CalculateEffectiveDamage(Card attackingCard, Card defendingCard)
+        public double CalculateEffectiveDamage(Card attackingCard, Card defendingCard)
         {
             double baseDamage = attackingCard.Damage;
 
-            // Apply type effectiveness
             if (attackingCard.Element == Card.ElementType.Water && defendingCard.Element == Card.ElementType.Fire)
                 baseDamage *= 2.0;
             else if (attackingCard.Element == Card.ElementType.Fire && defendingCard.Element == Card.ElementType.Normal)
@@ -191,25 +214,54 @@ namespace MCTG
             return baseDamage;
         }
 
-        public void BuyCards()
+        public async Task BuyCards()
         {
-            Console.WriteLine("\nBuying cards for Deck 1 or 2?");
-            Console.WriteLine("\nEnter 1 or 2 to buy cards for deck 1 or 2?");
-            string chooseDeck = Console.ReadLine();
-            switch (chooseDeck)
+            if (user1.Coin < 5)
             {
-                case "1":
-                    Console.WriteLine("Choosing Deck 1 to buy a package = 5 COINS");
-                    user1.BuyPackage();
-                    break;
-                case "2":
-                    Console.WriteLine("Choosing Deck 2 to buy a package = 5 COINS");
-                    user2.BuyPackage();
-                    break;
-                case "4":
-                    Console.WriteLine("Press any key to exit to menu");
-                    Console.ReadKey();
-                    break;
+                Console.WriteLine("Insufficient coins. You need 5 coins to buy a package.");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey();
+                return;
+            }
+
+            user1.Coin -= 5;
+            await _db.UpdateUserCoins(user1.Id, user1.Coin);
+
+            // Add 5 random cards
+            for (int i = 0; i < 5; i++)
+            {
+                Card newCard = GenerateRandomCard();
+                await _db.AddCardToUser(user1.Id, newCard);
+                user1.Stack.Cards.Add(newCard);
+            }
+
+            Console.WriteLine("Successfully purchased 5 new cards!");
+            Console.WriteLine($"Remaining coins: {user1.Coin}");
+            Console.WriteLine("Press any key to continue...");
+            Console.ReadKey();
+        }
+
+        private Card GenerateRandomCard()
+        {
+            Random rand = new Random();
+            Card.ElementType[] elements = { Card.ElementType.Fire, Card.ElementType.Water, Card.ElementType.Normal };
+            string[] monsterTypes = { "Goblin", "Wizard", "Dragon", "Orc", "Kraken", "Knight" };
+            string[] spellTypes = { "Fireball", "Heal", "Freeze", "Lightning" };
+
+            Card.ElementType elementType = elements[rand.Next(elements.Length)];
+            int damage = rand.Next(10, 50);
+
+            if (rand.Next(2) == 0)
+            {
+                string monsterName = $"Monster{rand.Next(1, 100)}";
+                string monsterType = monsterTypes[rand.Next(monsterTypes.Length)];
+                return new MonsterCard(monsterName, damage, elementType, monsterType);
+            }
+            else
+            {
+                string spellName = $"Spell{rand.Next(1, 100)}";
+                string spellType = spellTypes[rand.Next(spellTypes.Length)];
+                return new SpellCard(spellName, damage, elementType, spellType);
             }
         }
     }

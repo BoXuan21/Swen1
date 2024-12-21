@@ -2,6 +2,10 @@
 {
     public class User
     {
+        
+        private readonly DatabaseController _db;
+        
+        public int Id { get; set; }  // Add this property
         public string Username { get; set; }
         public string Password { get; set; }
         public Stack Stack { get; set; }
