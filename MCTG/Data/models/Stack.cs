@@ -12,13 +12,13 @@
         public void AddRandomCards(int count)
         {
             Random rand = new Random();
-            Card.ElementType[] elements = { Card.ElementType.Fire, Card.ElementType.Water, Card.ElementType.Normal };
+            ElementType[] elements = { ElementType.Fire, ElementType.Water, ElementType.Normal };
             string[] monsterTypes = { "Goblin", "Wizard", "Dragons", "Orcs", "Kraken", "Knights" };
             string[] spellTypes = { "Fireball", "Heal", "Freeze", "Lightning" };
 
             for (int i = 0; i < count; i++)
             {
-                Card.ElementType elementType = elements[rand.Next(elements.Length)];
+                ElementType elementType = elements[rand.Next(elements.Length)];
                 int damage = rand.Next(10, 50);
 
                 if (rand.Next(2) == 0)

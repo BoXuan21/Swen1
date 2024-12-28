@@ -175,17 +175,17 @@ namespace MCTG
             double baseDamage = attackingCard.Damage;
 
             // Apply type effectiveness
-            if (attackingCard.Element == Card.ElementType.Water && defendingCard.Element == Card.ElementType.Fire)
+            if (attackingCard.Element == ElementType.Water && defendingCard.Element == ElementType.Fire)
                 baseDamage *= 2.0;
-            else if (attackingCard.Element == Card.ElementType.Fire && defendingCard.Element == Card.ElementType.Normal)
+            else if (attackingCard.Element == ElementType.Fire && defendingCard.Element == ElementType.Normal)
                 baseDamage *= 2.0;
-            else if (attackingCard.Element == Card.ElementType.Normal && defendingCard.Element == Card.ElementType.Water)
+            else if (attackingCard.Element == ElementType.Normal && defendingCard.Element == ElementType.Water)
                 baseDamage *= 2.0;
-            else if (attackingCard.Element == Card.ElementType.Fire && defendingCard.Element == Card.ElementType.Water)
+            else if (attackingCard.Element == ElementType.Fire && defendingCard.Element == ElementType.Water)
                 baseDamage *= 0.5;
-            else if (attackingCard.Element == Card.ElementType.Normal && defendingCard.Element == Card.ElementType.Fire)
+            else if (attackingCard.Element == ElementType.Normal && defendingCard.Element == ElementType.Fire)
                 baseDamage *= 0.5;
-            else if (attackingCard.Element == Card.ElementType.Water && defendingCard.Element == Card.ElementType.Normal)
+            else if (attackingCard.Element == ElementType.Water && defendingCard.Element == ElementType.Normal)
                 baseDamage *= 0.5;
 
             return baseDamage;
