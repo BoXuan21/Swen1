@@ -1,0 +1,7 @@
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\CoverletSourceRootsMapping_MCTG_Test
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\obj\Debug\net8.0\MCTG_Test.csproj.AssemblyReference.cache
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\obj\Debug\net8.0\MCTG_Test.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\obj\Debug\net8.0\MCTG_Test.AssemblyInfoInputs.cache
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\obj\Debug\net8.0\MCTG_Test.AssemblyInfo.cs
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\obj\Debug\net8.0\MCTG_Test.csproj.CoreCompileInputs.cache
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\obj\Debug\net8.0\MCTG_Test.sourcelink.json
