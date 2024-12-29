@@ -8,7 +8,7 @@
         public Stack Stack { get; set; }
         public List<Card> Deck { get; set; }
         public int Coins { get; set; } = 20;
-        public string Elo { get; set; } = "Iron";
+        public int Elo { get; set; } = 100;  // Changed from string to int for easier calculation
         
         // Constructor for new users
         public User()
@@ -24,7 +24,6 @@
             Username = username;
             Password = password;
             Coins = 20;
-            Elo = "Iron";
             Deck = new List<Card>();
             Stack = new Stack();
         }
