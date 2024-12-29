@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		docker-compose.yml = docker-compose.yml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCTG_Test", "MCTG_Test\MCTG_Test.csproj", "{66D3B5AA-5F31-4E87-B496-7E0B8F9B8595}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,5 +19,9 @@ Global
 		{DBBAFC1B-F471-459E-ACCB-F62C20349582}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DBBAFC1B-F471-459E-ACCB-F62C20349582}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DBBAFC1B-F471-459E-ACCB-F62C20349582}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66D3B5AA-5F31-4E87-B496-7E0B8F9B8595}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66D3B5AA-5F31-4E87-B496-7E0B8F9B8595}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66D3B5AA-5F31-4E87-B496-7E0B8F9B8595}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66D3B5AA-5F31-4E87-B496-7E0B8F9B8595}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

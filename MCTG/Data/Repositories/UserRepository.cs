@@ -17,11 +17,14 @@ namespace MCTG
 
     public class UserRepository : IUserRepository
     {
-        private readonly string _connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
+        private readonly string _connectionString;
+        private readonly Dictionary<string, string> _tokens = new Dictionary<string, string>();
 
-        private readonly Dictionary<string, string>
-            _tokens = new Dictionary<string, string>(); // Store tokens in memory
-
+        public UserRepository(string connectionString)
+        {
+            _connectionString = connectionString;
+        }
+        
         public User GetByUsername(string username)
         {
             using var connection = new NpgsqlConnection(_connectionString);

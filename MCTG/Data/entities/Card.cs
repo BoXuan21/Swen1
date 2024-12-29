@@ -24,6 +24,7 @@
             Name = name;
             Damage = damage;
             Element = element;
+            CardType = "Monster";
         }
 
         // Default constructor for database mapping

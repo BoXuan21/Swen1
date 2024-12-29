@@ -17,7 +17,7 @@ namespace MCTG
                 Console.WriteLine("Database initialized successfully");
 
                 // Start server
-                IUserRepository userRepository = new UserRepository();
+                IUserRepository userRepository = new UserRepository(connectionString);
                 var server = new TcpServer(10001, userRepository);
                 server.Start();
             }
