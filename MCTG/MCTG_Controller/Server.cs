@@ -6,6 +6,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Text.Json;
+using System.IO;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
 namespace MCTG
 {
@@ -13,11 +16,15 @@ namespace MCTG
     {
         private readonly TcpListener _listener;
         private readonly IUserRepository _userRepository;
+        private readonly JwtService _jwtService;
+        private readonly JwtMiddleware _jwtMiddleware;
 
-        public TcpServer(int port, IUserRepository userRepository)
+        public TcpServer(int port, IUserRepository userRepository, JwtService jwtService)
         {
             _listener = new TcpListener(IPAddress.Any, port);
             _userRepository = userRepository;
+            _jwtService = jwtService;
+            _jwtMiddleware = new JwtMiddleware(null, jwtService);
         }
 
         public void Start()
@@ -32,7 +39,7 @@ namespace MCTG
             }
         }
 
-        private void HandleClient(object obj)
+        private async void HandleClient(object obj)
         {
             TcpClient client = (TcpClient)obj;
             using NetworkStream stream = client.GetStream();
@@ -41,7 +48,7 @@ namespace MCTG
             {
                 // Read request
                 byte[] buffer = new byte[1024];
-                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
                 string request = Encoding.UTF8.GetString(buffer, 0, bytesRead);
         
                 Console.WriteLine("Received request:");
@@ -72,24 +79,40 @@ namespace MCTG
 
                 Console.WriteLine($"Body: {body}"); // Log the parsed body
 
+                // Create an HttpContext for the current request
+                var context = new DefaultHttpContext();
+                context.Request.Method = method;
+                context.Request.Path = path;
+                context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+
+                // Invoke the JWT middleware
+                await _jwtMiddleware.Invoke(context);
+
+                // Check if the request is authorized
+                if (context.Response.StatusCode == 401)
+                {
+                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Unauthorized");
+                    return;
+                }
+
                 // Handle different endpoints
                 switch (method + " " + path)
                 {
                     case "POST /users":
-                        HandleRegistration(stream, body);
+                        await HandleRegistrationAsync(stream, body);
                         break;
                     case "POST /sessions":
-                        HandleLogin(stream, body);
+                        await HandleLoginAsync(stream, body);
                         break;
                     default:
-                        SendResponse(stream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
+                        await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
                         break;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error: {ex.Message}"); // Log any errors
-                SendResponse(stream, "HTTP/1.1 500 Internal Server Error", ex.Message);
+                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", ex.Message);
             }
             finally
             {
@@ -97,7 +120,7 @@ namespace MCTG
             }
         }
 
-        private void HandleRegistration(NetworkStream stream, string body)
+        private async Task HandleRegistrationAsync(NetworkStream stream, string body)
         {
             try
             {
@@ -112,44 +135,45 @@ namespace MCTG
         
                 if (user == null || string.IsNullOrEmpty(user.Username) || string.IsNullOrEmpty(user.Password))
                 {
-                    SendResponse(stream, "HTTP/1.1 400 Bad Request", "Invalid user data");
+                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid user data");
                     return;
                 }
 
                 Console.WriteLine($"Deserialized user: Username={user.Username}");
         
                 _userRepository.Add(user);
-                SendResponse(stream, "HTTP/1.1 201 Created", "User created successfully");
+                await SendResponseAsync(stream, "HTTP/1.1 201 Created", "User created successfully");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Registration error: {ex.Message}");
-                SendResponse(stream, "HTTP/1.1 400 Bad Request", $"Registration failed: {ex.Message}");
+                await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", $"Registration failed: {ex.Message}");
             }
         }
         
-        private void HandleLogin(NetworkStream stream, string body)
+       
+        private async Task HandleLoginAsync(NetworkStream stream, string body)
         {
             try
             {
                 var credentials = JsonSerializer.Deserialize<User>(body);
                 if (_userRepository.ValidateCredentials(credentials.Username, credentials.Password))
                 {
-                    string token = _userRepository.GenerateToken(credentials.Username);
-                    SendResponse(stream, "HTTP/1.1 200 OK", token);
+                    string token = _jwtService.GenerateToken(credentials.Username);
+                    await SendResponseAsync(stream, "HTTP/1.1 200 OK", token);
                 }
                 else
                 {
-                    SendResponse(stream, "HTTP/1.1 401 Unauthorized", "Invalid credentials");
+                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Invalid credentials");
                 }
             }
             catch (Exception)
             {
-                SendResponse(stream, "HTTP/1.1 400 Bad Request", "Login failed");
+                await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Login failed");
             }
         }
 
-        private void SendResponse(NetworkStream stream, string status, string content)
+        private async Task SendResponseAsync(NetworkStream stream, string status, string content)
         {
             string response = $"{status}\r\n" +
                             "Content-Type: application/json\r\n" +
@@ -158,7 +182,7 @@ namespace MCTG
                             content;
 
             byte[] responseBytes = Encoding.UTF8.GetBytes(response);
-            stream.Write(responseBytes, 0, responseBytes.Length);
+            await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
         }
     }
 }

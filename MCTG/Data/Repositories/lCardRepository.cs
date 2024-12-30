@@ -3,7 +3,7 @@ namespace MCTG
 {
     public interface ICardRepository
     {
-        void AddCard(Card card, int userId);
+        int AddCard(Card card, int userId);
         IEnumerable<Card> GetUserCards(int userId);
         void AddPackage(int userId);
         Card GetCard(int cardId);

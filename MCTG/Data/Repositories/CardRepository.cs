@@ -11,15 +11,40 @@ namespace MCTG
             _connectionString = connectionString;
         }
 
-        public void AddCard(Card card, int userId)
+        public int AddCard(Card card, int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
-            connection.Execute(@"
-               INSERT INTO cards (name, damage, element_type, card_type, user_id) 
-             VALUES (@Name, @Damage, @Element, @CardType, @userId)",
-                new { card.Name, card.Damage, Element = card.GetElementTypeString(), card.CardType, userId });
+            Console.WriteLine($"Adding card: Name={card.Name}, UserId={userId}, CardType={card.CardType}, Damage={card.Damage}");
+    
+            var sql = @"
+        INSERT INTO cards (name, damage, element_type, card_type, user_id) 
+        VALUES (@Name, @Damage, @Element, @CardType, @userId) 
+        RETURNING id";
+    
+            try 
+            {
+                var parameters = new
+                {
+                    card.Name,
+                    card.Damage,
+                    Element = card.Element.ToString(),
+                    card.CardType,
+                    userId
+                };
+        
+                var id = connection.QuerySingle<int>(sql, parameters);
+                Console.WriteLine($"Card added successfully with ID: {id}, CardType: {card.CardType}");
+                return id;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding card: {ex.Message}");
+                throw;
+            }
         }
 
+        
+        
         public IEnumerable<Card> GetUserCards(int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
@@ -43,11 +68,22 @@ namespace MCTG
         public Card GetCard(int cardId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
-            return connection.QuerySingleOrDefault<Card>(@"
-                SELECT * FROM cards 
-                WHERE id = @cardId",
-                new { cardId });
+            var sql = @"
+        SELECT 
+            id Id,
+            name Name,
+            damage Damage,
+            element_type Element,
+            card_type CardType,
+            user_id UserId
+        FROM cards 
+        WHERE id = @cardId";
+
+            var card = connection.QuerySingleOrDefault<Card>(sql, new { cardId });
+            Console.WriteLine($"Retrieved card from DB: Id={card?.Id}, Type={card?.CardType}, Element={card?.Element}");
+            return card;
         }
+        
 
         public IEnumerable<Card> GetUserDeck(int userId)
         {

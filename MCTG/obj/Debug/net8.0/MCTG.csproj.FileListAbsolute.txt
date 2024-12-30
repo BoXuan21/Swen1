@@ -151,3 +151,14 @@ C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\zh-Hans\Micros
 C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\zh-Hant\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.resources.dll
 C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\runtimes\browser\lib\net8.0\System.Text.Encodings.Web.dll
 C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Dapper.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.AspNetCore.Http.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.AspNetCore.Http.Abstractions.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.AspNetCore.Http.Features.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.AspNetCore.WebUtilities.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.Extensions.ObjectPool.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.IdentityModel.Abstractions.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.IdentityModel.JsonWebTokens.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.IdentityModel.Logging.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.IdentityModel.Tokens.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\Microsoft.Net.Http.Headers.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG\bin\Debug\net8.0\System.IdentityModel.Tokens.Jwt.dll

@@ -13,10 +13,7 @@
         public int Damage { get; set; }
         public ElementType Element { get; set; }
         public string CardType { get; set; }
-        
         public int? UserId { get; set; }
-        
-        public bool InDeck { get; set; }
 
         // Original constructor
         public Card(string name, int damage, ElementType element)

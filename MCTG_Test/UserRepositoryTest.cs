@@ -1,16 +1,24 @@
-﻿namespace MCTG;
-using Npgsql;
+﻿using Npgsql;
 using Dapper;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+
+namespace MCTG;
 
 public class UserRepositoryTests
 {
     private readonly string _connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
+    private readonly string _jwtSecretKey = "your-secret-key-at-least-16-chars";
     private IUserRepository _userRepository;
+    private JwtService _jwtService;
 
     [SetUp]
     public void Setup()
     {
         _userRepository = new UserRepository(_connectionString);
+        _jwtService = new JwtService(_jwtSecretKey);
     }
 
     [Test]
@@ -63,12 +71,24 @@ public class UserRepositoryTests
         var username = "testuser4";
 
         // Act
-        var token = _userRepository.GenerateToken(username);
+        var token = _jwtService.GenerateToken(username);
 
         // Assert
-        Assert.That(token, Is.EqualTo($"{username}-mtcgToken"));
-    }
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.ASCII.GetBytes(_jwtSecretKey);
+        tokenHandler.ValidateToken(token, new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ClockSkew = TimeSpan.Zero
+        }, out SecurityToken validatedToken);
 
+        var jwtToken = (JwtSecurityToken)validatedToken;
+        Assert.That(jwtToken.Claims.First(x => x.Type == "username").Value, Is.EqualTo(username));
+    }
+    
     [TearDown]
     public void Cleanup()
     {

@@ -8,6 +8,7 @@ namespace MCTG
         public static void Main(string[] args)
         {
             string connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
+            string jwtSecretKey = "your-secret-key-at-least-16-chars";
     
             try
             {
@@ -16,9 +17,12 @@ namespace MCTG
                 dbInitializer.InitializeDatabase();
                 Console.WriteLine("Database initialized successfully");
 
-                // Start server
+                // Create instances of required services
                 IUserRepository userRepository = new UserRepository(connectionString);
-                var server = new TcpServer(10001, userRepository);
+                JwtService jwtService = new JwtService(jwtSecretKey);
+
+                // Start server
+                var server = new TcpServer(10001, userRepository, jwtService);
                 server.Start();
             }
             catch (Exception ex)
