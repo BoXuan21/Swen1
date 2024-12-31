@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace MCTG
 {
-    public class JwtService
+    public class JwtService : IJwtService
     {
         private readonly string _secretKey;
 

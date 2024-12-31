@@ -46,94 +46,104 @@ public class TradeRepository : ITradeRepository
         }
     }
 
-    public bool ExecuteTrade(int tradeId, int offeredCardId, int newOwnerId)
+   public bool ExecuteTrade(int tradeId, int offeredCardId, int newOwnerId)
+{
+    using var connection = new NpgsqlConnection(_connectionString);
+    connection.Open();
+    using var transaction = connection.BeginTransaction();
+
+    try
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-        using var transaction = connection.BeginTransaction();
+        var trade = GetTradeById(tradeId);
+        Console.WriteLine($"Found trade: {trade?.Id}, CardId: {trade?.CardId}");
 
-        try
+        if (trade == null)
         {
-            // Get trade info with explicit column mapping
-            var trade = connection.QuerySingleOrDefault<Trade>(@"
-                SELECT id, card_id as CardId, user_id as UserId, required_type as RequiredType, minimum_damage as MinimumDamage 
-                FROM trades 
-                WHERE id = @tradeId", 
-                new { tradeId },
-                transaction);
-
-            Console.WriteLine($"Found trade: {trade?.Id}, CardId: {trade?.CardId}");
-
-            if (trade == null)
-            {
-                Console.WriteLine("Trade not found");
-                return false;
-            }
-
-            // Get both cards within the transaction
-            var tradedCard = connection.QuerySingleOrDefault<Card>(@"
-                SELECT * FROM cards WHERE id = @CardId", 
-                new { CardId = trade.CardId },
-                transaction);
-
-            var offeredCard = connection.QuerySingleOrDefault<Card>(@"
-                SELECT * FROM cards WHERE id = @CardId", 
-                new { CardId = offeredCardId },
-                transaction);
-
-            Console.WriteLine($"Found cards - Traded: {tradedCard?.Id}, Offered: {offeredCard?.Id}");
-
-            if (tradedCard == null || offeredCard == null)
-            {
-                Console.WriteLine("One or both cards not found");
-                return false;
-            }
-
-            if (!ValidateTrade(trade, offeredCard))
-            {
-                Console.WriteLine("Trade validation failed");
-                return false;
-            }
-
-            // Update card ownerships
-            connection.Execute(@"
-                UPDATE cards 
-                SET user_id = @NewOwnerId 
-                WHERE id = @CardId",
-                new { NewOwnerId = newOwnerId, CardId = trade.CardId },
-                transaction);
-
-            connection.Execute(@"
-                UPDATE cards 
-                SET user_id = @NewOwnerId 
-                WHERE id = @CardId",
-                new { NewOwnerId = trade.UserId, CardId = offeredCardId },
-                transaction);
-
-            // Delete the trade
-            connection.Execute(@"
-                DELETE FROM trades 
-                WHERE id = @TradeId",
-                new { TradeId = tradeId },
-                transaction);
-
-            transaction.Commit();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Trade execution error: {ex.Message}");
-            transaction.Rollback();
+            Console.WriteLine("Trade not found");
             return false;
         }
-    }
 
-    public IEnumerable<Trade> GetAllTrades()
+        // Use the same SELECT statement as GetCard
+        var cardSql = @"
+            SELECT 
+                id Id,
+                name Name,
+                damage Damage,
+                element_type Element,
+                card_type CardType,
+                user_id UserId
+            FROM cards 
+            WHERE id = @CardId";
+
+        var tradedCard = connection.QuerySingleOrDefault<Card>(cardSql, 
+            new { CardId = trade.CardId }, 
+            transaction);
+            
+        var offeredCard = connection.QuerySingleOrDefault<Card>(cardSql, 
+            new { CardId = offeredCardId }, 
+            transaction);
+
+        Console.WriteLine($"Found cards - Traded: {tradedCard?.Id} ({tradedCard?.CardType}), " +
+                         $"Offered: {offeredCard?.Id} ({offeredCard?.CardType})");
+
+        if (tradedCard == null || offeredCard == null)
+        {
+            Console.WriteLine("One or both cards not found");
+            return false;
+        }
+
+        if (!ValidateTrade(trade, offeredCard))
+        {
+            Console.WriteLine("Trade validation failed");
+            return false;
+        }
+
+        // Update card ownerships
+        var updateSql = "UPDATE cards SET user_id = @NewOwnerId WHERE id = @CardId";
+        
+        connection.Execute(updateSql,
+            new { NewOwnerId = newOwnerId, CardId = trade.CardId },
+            transaction);
+            
+        connection.Execute(updateSql,
+            new { NewOwnerId = trade.UserId, CardId = offeredCardId },
+            transaction);
+
+        // Delete the trade
+        DeleteTrade(tradeId);
+
+        transaction.Commit();
+        return true;
+    }
+    catch (Exception ex)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        return connection.Query<Trade>("SELECT * FROM trades ORDER BY id");
+        Console.WriteLine($"Trade execution error: {ex.Message}");
+        transaction.Rollback();
+        return false;
     }
+}
 
+public IEnumerable<Trade> GetAllTrades()
+{
+    using var connection = new NpgsqlConnection(_connectionString);
+    var sql = @"
+        SELECT 
+            id Id,
+            card_id as CardId,
+            user_id as UserId,
+            required_type as RequiredType,
+            minimum_damage as MinimumDamage
+        FROM trades 
+        ORDER BY id";
+
+    var trades = connection.Query<Trade>(sql).ToList();
+    Console.WriteLine($"Retrieved {trades.Count} trades");
+    foreach (var trade in trades)
+    {
+        Console.WriteLine($"Trade: Id={trade.Id}, CardId={trade.CardId}, RequiredType={trade.RequiredType}");
+    }
+    return trades;
+}
     public Trade GetTradeById(int tradeId)
     {
         using var connection = new NpgsqlConnection(_connectionString);

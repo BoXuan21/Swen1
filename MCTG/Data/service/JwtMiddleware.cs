@@ -9,9 +9,9 @@ namespace MCTG
     public class JwtMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly JwtService _jwtService;
+        private readonly IJwtService _jwtService;
 
-        public JwtMiddleware(RequestDelegate next, JwtService jwtService)
+        public JwtMiddleware(RequestDelegate next, IJwtService jwtService)
         {
             _next = next;
             _jwtService = jwtService;

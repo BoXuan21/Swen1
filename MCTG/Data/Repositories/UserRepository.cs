@@ -13,6 +13,9 @@ namespace MCTG
         void Add(User user);
         bool ValidateCredentials(string username, string password);
         string GenerateToken(string username);
+        void Update(User user);  // Add this method
+        
+        IEnumerable<User> GetAllUsers();  // Add this
     }
 
     public class UserRepository : IUserRepository
@@ -51,6 +54,25 @@ namespace MCTG
             string token = $"{username}-mtcgToken";
             _tokens[username] = token;
             return token;
+        }
+        
+        public void Update(User user)
+        {
+            using var connection = new NpgsqlConnection(_connectionString);
+            connection.Execute(@"
+        UPDATE users 
+        SET coins = @Coins, elo = @Elo 
+        WHERE id = @Id",
+                user);
+        }
+        
+        public IEnumerable<User> GetAllUsers()
+        {
+            using var connection = new NpgsqlConnection(_connectionString);
+            return connection.Query<User>(@"
+        SELECT id, username, password, coins, elo 
+        FROM users 
+        ORDER BY elo DESC");
         }
     }
 }

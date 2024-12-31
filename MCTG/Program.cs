@@ -9,7 +9,7 @@ namespace MCTG
         {
             string connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
             string jwtSecretKey = "your-secret-key-at-least-16-chars";
-    
+   
             try
             {
                 // Initialize database
@@ -19,10 +19,18 @@ namespace MCTG
 
                 // Create instances of required services
                 IUserRepository userRepository = new UserRepository(connectionString);
+                ICardRepository cardRepository = new CardRepository(connectionString);
+                ITradeRepository tradeRepository = new TradeRepository(connectionString, cardRepository);
                 JwtService jwtService = new JwtService(jwtSecretKey);
 
                 // Start server
-                var server = new TcpServer(10001, userRepository, jwtService);
+                var server = new TcpServer(
+                    port: 10001,
+                    userRepository: userRepository,
+                    cardRepository: cardRepository,
+                    tradeRepository: tradeRepository,
+                    jwtService: jwtService
+                );
                 server.Start();
             }
             catch (Exception ex)

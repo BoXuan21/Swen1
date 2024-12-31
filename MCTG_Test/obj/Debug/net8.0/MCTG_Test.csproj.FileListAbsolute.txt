@@ -138,3 +138,8 @@ C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\Microsoft
 C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\Microsoft.IdentityModel.Tokens.dll
 C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\Microsoft.Net.Http.Headers.dll
 C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\System.IdentityModel.Tokens.Jwt.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\Castle.Core.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\Moq.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\System.Diagnostics.EventLog.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\runtimes\win\lib\net6.0\System.Diagnostics.EventLog.Messages.dll
+C:\Users\Bo Xuan Yang\Desktop\Projects\MCTG\MCTG_Test\bin\Debug\net8.0\runtimes\win\lib\net6.0\System.Diagnostics.EventLog.dll
