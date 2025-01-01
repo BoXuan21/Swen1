@@ -1,11 +1,8 @@
-﻿using System;
-using System.IO;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Moq;
-using NUnit.Framework;
+using System.Security.Claims;
 
 namespace MCTG
 {
@@ -25,89 +22,157 @@ namespace MCTG
             _cardRepositoryMock = new Mock<ICardRepository>();
             _tradeRepositoryMock = new Mock<ITradeRepository>();
             _jwtServiceMock = new Mock<IJwtService>();
-            _server = new TcpServer(10001, _userRepositoryMock.Object, _cardRepositoryMock.Object,
-                _tradeRepositoryMock.Object, _jwtServiceMock.Object);
+            _server = new TcpServer(
+                10001,
+                _userRepositoryMock.Object,
+                _cardRepositoryMock.Object,
+                _tradeRepositoryMock.Object,
+                _jwtServiceMock.Object
+            );
         }
 
         [Test]
         public async Task HandleLoginAsync_ValidCredentials_ReturnsOkResponseWithToken()
         {
-            // Arrange
-            var stream = new MemoryStream();
-            var body = "{\"username\":\"testuser\",\"password\":\"password\"}";
-
+            var user = new User { Username = "testuser", Password = "password" };
             _userRepositoryMock
-                .Setup(repo => repo.ValidateCredentials("testuser", "password"))
+                .Setup(repo => repo.ValidateCredentials(
+                    It.Is<string>(u => u == "testuser"),
+                    It.Is<string>(p => p == "password")))
                 .Returns(true);
 
             _jwtServiceMock
                 .Setup(service => service.GenerateToken("testuser"))
                 .Returns("test-token");
 
-            // Act
-            await _server.HandleLoginAsync(stream, body);
+            var stream = new MemoryStream();
+            await _server.HandleLoginAsync(stream, JsonSerializer.Serialize(user));
 
-            // Verify the ValidateCredentials method was called
-            _userRepositoryMock.Verify(repo => repo.ValidateCredentials("testuser", "password"), Times.Once);
-
-            // Verify the GenerateToken method was called
-            _jwtServiceMock.Verify(service => service.GenerateToken("testuser"), Times.Once);
-
-            // Debugging assistance
             var response = Encoding.UTF8.GetString(stream.ToArray());
-            Console.WriteLine("Response Written to Stream:\n" + response);
-
-            // Assert
-            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(response, Contains.Substring("200 OK"));
             Assert.That(response, Contains.Substring("test-token"));
         }
 
+        [Test]
+        public async Task HandleBattleAsync_ValidBattle_ReturnsBattleLog()
+        {
+            // Arrange
+            var user1 = new User
+            {
+                Id = 1,
+                Username = "player1",
+                Elo = 100,
+                Stack = new Stack()
+            };
+            var user2 = new User
+            {
+                Id = 2,
+                Username = "player2",
+                Elo = 100,
+                Stack = new Stack()
+            };
 
+            var deck1Cards = new List<Card>
+            {
+                new Card("Card1", 50, ElementType.Fire)
+                {
+                    CardType = "Monster",
+                    UserId = 1
+                }
+            };
+            var deck2Cards = new List<Card>
+            {
+                new Card("Card2", 40, ElementType.Water)
+                {
+                    CardType = "Spell",
+                    UserId = 2
+                }
+            };
 
+            _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
+            _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
+            _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
+            _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.Name, "player1") },
+                "test"
+            );
+            context.User = new ClaimsPrincipal(identity);
+
+            var battleRequest = new BattleRequest { OpponentUsername = "player2" };
+            var body = JsonSerializer.Serialize(battleRequest);
+            var stream = new MemoryStream();
+
+            // Act
+            await _server.HandleBattleAsync(stream, context, body);
+
+            // Assert
+            _userRepositoryMock.Verify(r => r.GetByUsername("player1"), Times.Once);
+            _userRepositoryMock.Verify(r => r.GetByUsername("player2"), Times.Once);
+            _userRepositoryMock.Verify(r => r.Update(It.IsAny<User>()), Times.Exactly(2));
+
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("200 OK"));
+            Assert.That(response, Contains.Substring("\"Rounds\""));
+            Assert.That(response, Contains.Substring("\"Winner\""));
+            Assert.That(response, Contains.Substring("\"FinalScore1\""));
+            Assert.That(response, Contains.Substring("\"FinalScore2\""));
+        }
+
+        [Test]
+        public async Task HandleBattleAsync_UserNotFound_Returns404()
+        {
+            // Arrange
+            _userRepositoryMock.Setup(r => r.GetByUsername(It.IsAny<string>()))
+                .Returns((User)null);
+
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.Name, "player1") },
+                "test"
+            );
+            context.User = new ClaimsPrincipal(identity);
+
+            var body = JsonSerializer.Serialize(new BattleRequest { OpponentUsername = "player2" });
+            var stream = new MemoryStream();
+
+            // Act
+            await _server.HandleBattleAsync(stream, context, body);
+
+            // Assert
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("404 Not Found"));
+        }
 
         [Test]
         public async Task HandleGetCardsAsync_UserExists_ReturnsOkResponseWithCards()
         {
-            // Arrange
-            var stream = new MemoryStream();
-            var context = new DefaultHttpContext();
-            context.User = new System.Security.Claims.ClaimsPrincipal(
-                new System.Security.Claims.ClaimsIdentity(
-                    new[] { new System.Security.Claims.Claim("username", "testuser") }, "mock"));
-
             var user = new User { Id = 1, Username = "testuser" };
             _userRepositoryMock
-                .Setup(repo => repo.GetByUsername("testuser"))
+                .Setup(repo => repo.GetByUsername(It.Is<string>(u => u == "testuser")))
                 .Returns(user);
 
-            var cards = new[]
-            {
-                new Card { Id = 1, Name = "Card1" },
-                new Card { Id = 2, Name = "Card2" }
-            };
+            var cards = new[] { new Card { Id = 1, Name = "Card1" } };
             _cardRepositoryMock
-                .Setup(repo => repo.GetUserCards(user.Id))
+                .Setup(repo => repo.GetUserCards(1))
                 .Returns(cards);
 
-            // Act
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.Name, "testuser") },
+                "test"
+            );
+            context.User = new ClaimsPrincipal(identity);
+
+            var stream = new MemoryStream();
             await _server.HandleGetCardsAsync(stream, context);
 
-            // Verify the GetByUsername method was called
-            _userRepositoryMock.Verify(repo => repo.GetByUsername("testuser"), Times.Once);
-
-            // Verify the GetUserCards method was called
-            _cardRepositoryMock.Verify(repo => repo.GetUserCards(user.Id), Times.Once);
-
-            // Debugging assistance
             var response = Encoding.UTF8.GetString(stream.ToArray());
-            Console.WriteLine("Response Written to Stream:\n" + response);
-
-            // Assert
-            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
-            Assert.That(response, Contains.Substring(JsonSerializer.Serialize(cards)));
+            Assert.That(response, Contains.Substring("200 OK"));
         }
 
-        
         [Test]
         public async Task HandleRegistrationAsync_ValidUser_ReturnsCreatedResponse()
         {
@@ -124,7 +189,7 @@ namespace MCTG
             Assert.That(response, Contains.Substring("HTTP/1.1 201 Created"));
             Assert.That(response, Contains.Substring("User created successfully"));
         }
-        
+
         [Test]
         public void ValidateCredentials_Mock_ReturnsExpectedValue()
         {

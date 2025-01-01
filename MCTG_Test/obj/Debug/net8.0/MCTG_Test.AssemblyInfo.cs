@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MCTG_Test")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b5ea6bf60db05be42a2bae43fdcc912a00c07356")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+850ac42acaf4de6006f102417b1e466c58641442")]
 [assembly: System.Reflection.AssemblyProductAttribute("MCTG_Test")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MCTG_Test")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

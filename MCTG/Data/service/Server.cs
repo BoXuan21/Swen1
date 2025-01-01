@@ -115,6 +115,10 @@ namespace MCTG
                     case "POST /packages":
                         await HandleBuyPackageAsync(stream, body, context);
                         break;
+                    
+                    case "POST/battle":
+                        await HandleBattleAsync(stream, context, body);
+                        break;
 
                     // Deck endpoints
                     case "GET /deck":
@@ -162,7 +166,35 @@ namespace MCTG
                 client.Close();
             }
         }
+        
+        public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
+        {
+            var username = context.User.Identity.Name;
+            var user1 = _userRepository.GetByUsername(username);
+            var opponent = JsonSerializer.Deserialize<BattleRequest>(body);
+            var user2 = _userRepository.GetByUsername(opponent.OpponentUsername);
 
+            if (user1 == null || user2 == null)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                return;
+            }
+
+            var cardsInDeck1 = _cardRepository.GetUserDeck(user1.Id).ToList();
+            var cardsInDeck2 = _cardRepository.GetUserDeck(user2.Id).ToList();
+
+            var deck1 = new Deck(new Stack { Cards = cardsInDeck1 });
+            var deck2 = new Deck(new Stack { Cards = cardsInDeck2 });
+
+            var battleLogic = new BattleLogic(user1, user2, deck1, deck2);
+            var battleLog = battleLogic.ExecuteBattle();
+
+            _userRepository.Update(user1);
+            _userRepository.Update(user2);
+
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
+        }
+        
         public async Task HandleRegistrationAsync(Stream stream, string body)
         {
             try
