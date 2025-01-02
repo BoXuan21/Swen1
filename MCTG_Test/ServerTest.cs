@@ -14,6 +14,7 @@ namespace MCTG
         private Mock<ITradeRepository> _tradeRepositoryMock;
         private Mock<IJwtService> _jwtServiceMock;
         private TcpServer _server;
+        private Mock<IBattleRepository> _battleRepositoryMock;
 
         [SetUp]
         public void Setup()
@@ -21,12 +22,14 @@ namespace MCTG
             _userRepositoryMock = new Mock<IUserRepository>();
             _cardRepositoryMock = new Mock<ICardRepository>();
             _tradeRepositoryMock = new Mock<ITradeRepository>();
+            _battleRepositoryMock = new Mock<IBattleRepository>();
             _jwtServiceMock = new Mock<IJwtService>();
             _server = new TcpServer(
                 10001,
                 _userRepositoryMock.Object,
                 _cardRepositoryMock.Object,
                 _tradeRepositoryMock.Object,
+                _battleRepositoryMock.Object,
                 _jwtServiceMock.Object
             );
         }
@@ -228,14 +231,55 @@ namespace MCTG
             var result = _cardRepositoryMock.Object.GetUserCards(1);
             Assert.That(result, Is.EqualTo(cards), "Mocked GetUserCards should return the expected cards.");
         }
+        
+        [Test]
+        public async Task HandleGetBattleHistoryAsync_ReturnsUserBattleHistory()
+        {
+            // Arrange
+            var user = new User { Id = 1, Username = "testuser" };
+            var battleHistory = new[] 
+            {
+                new BattleHistory 
+                { 
+                    Id = 1, 
+                    Player1Id = 1, 
+                    Player2Id = 2, 
+                    WinnerId = 1 
+                }
+            };
+
+            _userRepositoryMock
+                .Setup(repo => repo.GetByUsername("testuser"))
+                .Returns(user);
+            _battleRepositoryMock
+                .Setup(repo => repo.GetUserBattleHistory(1))
+                .Returns(battleHistory);
+
+            var context = new DefaultHttpContext();
+            var identity = new ClaimsIdentity(
+                new[] { new Claim(ClaimTypes.Name, "testuser") },
+                "test"
+            );
+            context.User = new ClaimsPrincipal(identity);
+
+            var stream = new MemoryStream();
+
+            // Act
+            await _server.HandleGetBattleHistoryAsync(stream, context);
+
+            // Assert
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("200 OK"));
+            _battleRepositoryMock.Verify(repo => repo.GetUserBattleHistory(1), Times.Once);
+        }
 
         [TearDown]
         public void Teardown()
         {
-            // Reset mocks to avoid cross-test contamination
             _userRepositoryMock.Reset();
             _cardRepositoryMock.Reset();
             _tradeRepositoryMock.Reset();
+            _battleRepositoryMock.Reset();
             _jwtServiceMock.Reset();
         }
     }

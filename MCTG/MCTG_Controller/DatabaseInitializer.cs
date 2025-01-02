@@ -44,6 +44,18 @@ public class DatabaseInitializer
                 in_deck BOOLEAN DEFAULT false,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )";
+        
+        var createBattleHistoryTable = @"
+    CREATE TABLE IF NOT EXISTS battle_history (
+        id SERIAL PRIMARY KEY,
+        player1_id INTEGER REFERENCES users(id),
+        player2_id INTEGER REFERENCES users(id),
+        winner_id INTEGER REFERENCES users(id),
+        battle_log TEXT NOT NULL,
+        player1_elo_change INTEGER NOT NULL,
+        player2_elo_change INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )";
 
         // Create trades table
         var createTradesTable = @"

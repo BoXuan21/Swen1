@@ -18,17 +18,19 @@ namespace MCTG
         private readonly IUserRepository _userRepository;
         private readonly ICardRepository _cardRepository;
         private readonly ITradeRepository _tradeRepository;
+        private readonly IBattleRepository _battleRepository;
         private readonly IJwtService _jwtService;
         private readonly JwtMiddleware _jwtMiddleware;
-
+        private readonly IPackageRepository _packageRepository;
 
         public TcpServer(int port, IUserRepository userRepository, ICardRepository cardRepository, 
-            ITradeRepository tradeRepository, IJwtService jwtService)
+            ITradeRepository tradeRepository, IBattleRepository battleRepository, IJwtService jwtService)
         {
             _listener = new TcpListener(IPAddress.Any, port);
             _userRepository = userRepository;
             _cardRepository = cardRepository;
             _tradeRepository = tradeRepository;
+            _battleRepository = battleRepository;
             _jwtService = jwtService;
             _jwtMiddleware = new JwtMiddleware(null, jwtService);
         }
@@ -146,6 +148,11 @@ namespace MCTG
                     case "DELETE /tradings":
                         await HandleDeleteTradeAsync(stream, path, context);
                         break;
+                    
+                    case "GET /history":
+                        await HandleGetBattleHistoryAsync(stream, context);
+                        break;
+                    
 
                     default:
                         await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
@@ -166,6 +173,8 @@ namespace MCTG
                 client.Close();
             }
         }
+        
+        
         
         public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
         {
@@ -189,10 +198,41 @@ namespace MCTG
             var battleLogic = new BattleLogic(user1, user2, deck1, deck2);
             var battleLog = battleLogic.ExecuteBattle();
 
+            // Save battle history
+            var battleHistory = new BattleHistory
+            {
+                Player1Id = user1.Id,
+                Player2Id = user2.Id,
+                WinnerId = battleLog.Winner == "User 1" ? user1.Id : user2.Id,
+                BattleLog = JsonSerializer.Serialize(battleLog),
+                Player1EloChange = user1.Elo - 100,
+                Player2EloChange = user2.Elo - 100
+            };
+    
+            _battleRepository.SaveBattleHistory(battleHistory);
+
             _userRepository.Update(user1);
             _userRepository.Update(user2);
 
             await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
+        }
+        
+        
+        
+        public async Task HandleGetBattleHistoryAsync(Stream stream, HttpContext context)
+        {
+            var username = context.User.Identity.Name;
+            var user = _userRepository.GetByUsername(username);
+    
+            if (user == null)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                return;
+            }
+
+            var battles = _battleRepository.GetUserBattleHistory(user.Id);
+            var response = JsonSerializer.Serialize(battles);
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
         }
         
         public async Task HandleRegistrationAsync(Stream stream, string body)
@@ -260,12 +300,28 @@ namespace MCTG
             var response = JsonSerializer.Serialize(cards);
             await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
         }
+        
+        public async Task HandleCreatePackageAsync(Stream stream, HttpContext context, string body)
+        {
+            var username = context.User.Identity.Name;
+            var user = _userRepository.GetByUsername(username);
+    
+            if (user == null || user.Username != "admin") // Simple admin check
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Admin access required");
+                return;
+            }
+
+            var cards = JsonSerializer.Deserialize<List<Card>>(body);
+            _packageRepository.CreatePackage(cards);
+            await SendResponseAsync(stream, "HTTP/1.1 201 Created", "Package created successfully");
+        }
 
         public async Task HandleBuyPackageAsync(Stream stream, string body, HttpContext context)
         {
             var username = context.User.Identity.Name;
             var user = _userRepository.GetByUsername(username);
-            
+    
             if (user == null)
             {
                 await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
@@ -278,11 +334,18 @@ namespace MCTG
                 return;
             }
 
-            _cardRepository.AddPackage(user.Id);
+            var package = _packageRepository.GetAvailablePackage();
+            if (package == null)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "No packages available");
+                return;
+            }
+
+            _packageRepository.MarkPackageAsSold(package.Id, user.Id);
             user.Coins -= 5;
             _userRepository.Update(user);
-            
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Package bought successfully");
+    
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(package.Cards));
         }
 
         public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
