@@ -22,16 +22,21 @@ namespace MCTG
         private readonly IJwtService _jwtService;
         private readonly JwtMiddleware _jwtMiddleware;
         private readonly IPackageRepository _packageRepository;
+        private readonly IUserStatsRepository _userStatsRepository;
 
         public TcpServer(int port, IUserRepository userRepository, ICardRepository cardRepository, 
-            ITradeRepository tradeRepository, IBattleRepository battleRepository, IJwtService jwtService)
+            ITradeRepository tradeRepository, IBattleRepository battleRepository, 
+            IJwtService jwtService, IUserStatsRepository userStatsRepository, IPackageRepository packageRepository)
         {
             _listener = new TcpListener(IPAddress.Any, port);
+            _userStatsRepository = userStatsRepository;
+            _packageRepository = packageRepository;
             _userRepository = userRepository;
             _cardRepository = cardRepository;
             _tradeRepository = tradeRepository;
             _battleRepository = battleRepository;
             _jwtService = jwtService;
+            _userStatsRepository = userStatsRepository;
             _jwtMiddleware = new JwtMiddleware(null, jwtService);
         }
 
@@ -176,46 +181,79 @@ namespace MCTG
         
         
         
-        public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
-        {
-            var username = context.User.Identity.Name;
-            var user1 = _userRepository.GetByUsername(username);
-            var opponent = JsonSerializer.Deserialize<BattleRequest>(body);
-            var user2 = _userRepository.GetByUsername(opponent.OpponentUsername);
+       public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
+{
+    var username = context.User.Identity.Name;
+    var user1 = _userRepository.GetByUsername(username);
+    var opponent = JsonSerializer.Deserialize<BattleRequest>(body);
+    var user2 = _userRepository.GetByUsername(opponent.OpponentUsername);
 
-            if (user1 == null || user2 == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+    if (user1 == null || user2 == null)
+    {
+        await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+        return;
+    }
 
-            var cardsInDeck1 = _cardRepository.GetUserDeck(user1.Id).ToList();
-            var cardsInDeck2 = _cardRepository.GetUserDeck(user2.Id).ToList();
-
-            var deck1 = new Deck(new Stack { Cards = cardsInDeck1 });
-            var deck2 = new Deck(new Stack { Cards = cardsInDeck2 });
-
-            var battleLogic = new BattleLogic(user1, user2, deck1, deck2);
-            var battleLog = battleLogic.ExecuteBattle();
-
-            // Save battle history
-            var battleHistory = new BattleHistory
-            {
-                Player1Id = user1.Id,
-                Player2Id = user2.Id,
-                WinnerId = battleLog.Winner == "User 1" ? user1.Id : user2.Id,
-                BattleLog = JsonSerializer.Serialize(battleLog),
-                Player1EloChange = user1.Elo - 100,
-                Player2EloChange = user2.Elo - 100
-            };
+    // Get user stats
+    var stats1 = _userStatsRepository.GetUserStats(user1.Id);
+    var stats2 = _userStatsRepository.GetUserStats(user2.Id);
     
-            _battleRepository.SaveBattleHistory(battleHistory);
+    if (stats1 == null || stats2 == null)
+    {
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "User stats not found");
+        return;
+    }
 
-            _userRepository.Update(user1);
-            _userRepository.Update(user2);
+    var cardsInDeck1 = _cardRepository.GetUserDeck(user1.Id).ToList();
+    var cardsInDeck2 = _cardRepository.GetUserDeck(user2.Id).ToList();
+    
+    if (cardsInDeck1.Count < 4 || cardsInDeck2.Count < 4)
+    {
+        await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Both users must have at least 4 cards in their deck");
+        return;
+    }
 
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
-        }
+    var deck1 = new Deck(new Stack { Cards = cardsInDeck1 });
+    var deck2 = new Deck(new Stack { Cards = cardsInDeck2 });
+
+    var battleLogic = new BattleLogic(user1, user2, deck1, deck2);
+    var battleLog = battleLogic.ExecuteBattle();
+
+    // Update stats based on battle result
+    stats1.GamesPlayed++;
+    stats2.GamesPlayed++;
+
+    if (battleLog.Winner == "User 1")
+    {
+        stats1.Wins++;
+        stats2.Losses++;
+        stats1.Elo += 3;
+        stats2.Elo -= 5;
+    }
+    else if (battleLog.Winner == "User 2")
+    {
+        stats2.Wins++;
+        stats1.Losses++;
+        stats2.Elo += 3;
+        stats1.Elo -= 5;
+    }
+    else
+    {
+        stats1.Draws++;
+        stats2.Draws++;
+    }
+
+    _userStatsRepository.UpdateStats(stats1);
+    _userStatsRepository.UpdateStats(stats2);
+
+    await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
+    
+    Console.WriteLine($"Updating stats for user1: {JsonSerializer.Serialize(stats1)}");
+    _userStatsRepository.UpdateStats(stats1);
+
+    Console.WriteLine($"Updating stats for user2: {JsonSerializer.Serialize(stats2)}");
+    _userStatsRepository.UpdateStats(stats2);
+}
         
         
         
@@ -368,7 +406,7 @@ namespace MCTG
         {
             var username = context.User.Identity.Name;
             var user = _userRepository.GetByUsername(username);
-            
+    
             if (user == null)
             {
                 await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
@@ -376,9 +414,32 @@ namespace MCTG
             }
 
             var cardIds = JsonSerializer.Deserialize<List<int>>(body);
-            if (cardIds.Count != 4)
+    
+            // Validate deck size
+            if (cardIds == null || cardIds.Count != 4)
             {
                 await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Deck must contain exactly 4 cards");
+                return;
+            }
+
+            // Validate card ownership
+            var userCards = _cardRepository.GetUserCards(user.Id).ToList();
+            var invalidCards = cardIds.Where(id => !userCards.Any(c => c.Id == id)).ToList();
+    
+            if (invalidCards.Any())
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Deck contains cards you don't own");
+                return;
+            }
+
+            // Validate cards aren't in trades
+            var tradedCards = _tradeRepository.GetAllTrades()
+                .Where(t => cardIds.Contains(t.CardId))
+                .ToList();
+    
+            if (tradedCards.Any())
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot add cards that are currently being traded");
                 return;
             }
 

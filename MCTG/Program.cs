@@ -22,6 +22,8 @@ namespace MCTG
                 ICardRepository cardRepository = new CardRepository(connectionString);
                 ITradeRepository tradeRepository = new TradeRepository(connectionString, cardRepository);
                 IBattleRepository battleRepository = new BattleRepository(connectionString);
+                IPackageRepository packageRepository = new PackageRepository(connectionString, cardRepository);
+                IUserStatsRepository userStatsRepository = new UserStatsRepository(connectionString);
                 JwtService jwtService = new JwtService(jwtSecretKey);
 
                 // Start server
@@ -31,7 +33,9 @@ namespace MCTG
                     cardRepository: cardRepository,
                     tradeRepository: tradeRepository,
                     battleRepository: battleRepository,
-                    jwtService: jwtService
+                    jwtService: jwtService,
+                    userStatsRepository: userStatsRepository,
+                    packageRepository: packageRepository
                 );
                 server.Start();
             }
@@ -41,4 +45,4 @@ namespace MCTG
             }
         }
     }
-    }
+}

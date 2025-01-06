@@ -56,6 +56,18 @@ public class DatabaseInitializer
         player2_elo_change INTEGER NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )";
+        
+        //create UserStatsTable
+        var createUserStatsTable = @"
+    CREATE TABLE IF NOT EXISTS user_stats (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        games_played INTEGER DEFAULT 0,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+        draws INTEGER DEFAULT 0,
+        elo INTEGER DEFAULT 100
+    )";
 
         // Create trades table
         var createTradesTable = @"
