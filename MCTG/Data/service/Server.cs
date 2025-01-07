@@ -158,6 +158,14 @@ namespace MCTG
                         await HandleGetBattleHistoryAsync(stream, context);
                         break;
                     
+                    case "GET /users/profile":
+                        await HandleGetProfileAsync(stream, context);
+                        break;
+    
+                    case "PUT /users/profile":
+                        await HandleUpdateProfileAsync(stream, body, context);
+                        break;
+                    
 
                     default:
                         await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
@@ -179,9 +187,43 @@ namespace MCTG
             }
         }
         
+        public async Task HandleGetProfileAsync(Stream stream, HttpContext context)
+        {
+            var username = context.User.Identity.Name;
+            var user = _userRepository.GetByUsername(username);
+    
+            if (user == null)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                return;
+            }
+
+            var profile = _userRepository.GetUserProfile(user.Id);
+            var response = JsonSerializer.Serialize(profile);
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+        }
+
+        public async Task HandleUpdateProfileAsync(Stream stream, string body, HttpContext context)
+        {
+            var username = context.User.Identity.Name;
+            var user = _userRepository.GetByUsername(username);
+    
+            if (user == null)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                return;
+            }
+
+            var profile = JsonSerializer.Deserialize<UserProfile>(body);
+            profile.UserId = user.Id;
+    
+            _userRepository.UpdateProfile(profile);
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Profile updated successfully");
+        }
         
         
-       public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
+        
+public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
 {
     var username = context.User.Identity.Name;
     var user1 = _userRepository.GetByUsername(username);
@@ -243,18 +285,12 @@ namespace MCTG
         stats2.Draws++;
     }
 
+    // Update stats once
     _userStatsRepository.UpdateStats(stats1);
     _userStatsRepository.UpdateStats(stats2);
 
     await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
-    
-    Console.WriteLine($"Updating stats for user1: {JsonSerializer.Serialize(stats1)}");
-    _userStatsRepository.UpdateStats(stats1);
-
-    Console.WriteLine($"Updating stats for user2: {JsonSerializer.Serialize(stats2)}");
-    _userStatsRepository.UpdateStats(stats2);
 }
-        
         
         
         public async Task HandleGetBattleHistoryAsync(Stream stream, HttpContext context)

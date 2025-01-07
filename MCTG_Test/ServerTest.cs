@@ -255,117 +255,319 @@ namespace MCTG
             Assert.That(response, Contains.Substring("403 Forbidden"));
         }
         
-        [Test]
+      [Test]
 public async Task HandleBattleAsync_UpdatesUserStats_AfterBattle()
 {
-   // Arrange
-   var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
-   var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
+    // Arrange
+    var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
+    var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
    
-   var stats1 = new UserStats { UserId = 1, GamesPlayed = 0, Wins = 0, Losses = 0, Elo = 100 };
-   var stats2 = new UserStats { UserId = 2, GamesPlayed = 0, Wins = 0, Losses = 0, Elo = 100 };
+    var stats1 = new UserStats { UserId = 1, GamesPlayed = 0, Wins = 0, Losses = 0, Elo = 100 };
+    var stats2 = new UserStats { UserId = 2, GamesPlayed = 0, Wins = 0, Losses = 0, Elo = 100 };
 
-   _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
-   _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
-   _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
-   _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+    _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
+    _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
+    _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
+    _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
 
-   var deck1Cards = new List<Card> { new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 } };
-   var deck2Cards = new List<Card> { new Card("Card2", 40, ElementType.Water) { CardType = "Spell", UserId = 2 } };
+    // Create decks with 4 cards each
+    var deck1Cards = new List<Card> {
+        new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card3", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card4", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 }
+    };
+    var deck2Cards = new List<Card> {
+        new Card("Card5", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
+        new Card("Card6", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
+        new Card("Card7", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
+        new Card("Card8", 40, ElementType.Water) { CardType = "Monster", UserId = 2 }
+    };
 
-   _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
-   _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+    _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
+    _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
 
-   var context = new DefaultHttpContext();
-   var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
-   context.User = new ClaimsPrincipal(identity);
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
+    context.User = new ClaimsPrincipal(identity);
 
-   var battleRequest = new BattleRequest { OpponentUsername = "player2" };
-   var stream = new MemoryStream();
+    var battleRequest = new BattleRequest { OpponentUsername = "player2" };
+    var stream = new MemoryStream();
 
-   // Act
-   await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+    // Setup UpdateStats to accept any changes
+    _userStatsRepositoryMock
+        .Setup(r => r.UpdateStats(It.IsAny<UserStats>()))
+        .Verifiable();
 
-   // Assert
-   _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
-       s.GamesPlayed == 1 &&
-       (s.Wins == 1 || s.Losses == 1))), 
-       Times.Exactly(2));
+    // Act
+    await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+
+    // Assert
+    _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
+        s.GamesPlayed == 1 &&
+        (s.Wins == 1 || s.Losses == 1))), 
+        Times.Exactly(2));
 }
 
 [Test]
 public async Task HandleBattleAsync_UpdatesElo_AfterBattle()
 {
-   // Arrange
-   var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
-   var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
+    // Arrange
+    var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
+    var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
    
-   var stats1 = new UserStats { UserId = 1, GamesPlayed = 10, Wins = 5, Elo = 100 };
-   var stats2 = new UserStats { UserId = 2, GamesPlayed = 10, Wins = 5, Elo = 100 };
+    var stats1 = new UserStats { UserId = 1, GamesPlayed = 10, Wins = 5, Elo = 100 };
+    var stats2 = new UserStats { UserId = 2, GamesPlayed = 10, Wins = 5, Elo = 100 };
 
-   _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
-   _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
-   _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
-   _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+    _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
+    _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
+    _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
+    _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
 
-   var deck1Cards = new List<Card> { new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 } };
-   var deck2Cards = new List<Card> { new Card("Card2", 40, ElementType.Water) { CardType = "Spell", UserId = 2 } };
+    // Create decks with 4 cards each
+    var deck1Cards = new List<Card> {
+        new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card3", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card4", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 }
+    };
+    var deck2Cards = new List<Card> {
+        new Card("Card5", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
+        new Card("Card6", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
+        new Card("Card7", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
+        new Card("Card8", 40, ElementType.Water) { CardType = "Monster", UserId = 2 }
+    };
 
-   _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
-   _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+    _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
+    _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
 
-   var context = new DefaultHttpContext();
-   var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
-   context.User = new ClaimsPrincipal(identity);
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
+    context.User = new ClaimsPrincipal(identity);
 
-   var battleRequest = new BattleRequest { OpponentUsername = "player2" };
-   var stream = new MemoryStream();
+    var battleRequest = new BattleRequest { OpponentUsername = "player2" };
+    var stream = new MemoryStream();
 
-   // Act
-   await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+    // Setup UpdateStats to accept any changes
+    _userStatsRepositoryMock
+        .Setup(r => r.UpdateStats(It.IsAny<UserStats>()))
+        .Verifiable();
 
-   // Assert
-   _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
-       Math.Abs(s.Elo - 100) == 3 || Math.Abs(s.Elo - 100) == 5)), 
-       Times.Exactly(2));
+    // Act
+    await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+
+    // Assert
+    _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
+        Math.Abs(s.Elo - 100) == 3 || Math.Abs(s.Elo - 100) == 5)), 
+        Times.Exactly(2));
 }
 
 [Test]
 public async Task HandleBattleAsync_Draw_UpdatesStats()
 {
-   // Arrange
-   var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
-   var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
+    // Arrange
+    var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
+    var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
    
-   var stats1 = new UserStats { UserId = 1, GamesPlayed = 0, Draws = 0, Elo = 100 };
-   var stats2 = new UserStats { UserId = 2, GamesPlayed = 0, Draws = 0, Elo = 100 };
+    var stats1 = new UserStats { UserId = 1, GamesPlayed = 0, Draws = 0, Elo = 100 };
+    var stats2 = new UserStats { UserId = 2, GamesPlayed = 0, Draws = 0, Elo = 100 };
 
-   _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
-   _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
-   _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
-   _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+    _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
+    _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
+    _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
+    _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
 
-   // Setup identical decks to force a draw
-   var deck1Cards = new List<Card> { new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 } };
-   var deck2Cards = new List<Card> { new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 } };
+    // Create decks with 4 identical cards each to force a draw
+    var deck1Cards = new List<Card> {
+        new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card3", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
+        new Card("Card4", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 }
+    };
+    var deck2Cards = new List<Card> {
+        new Card("Card5", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 },
+        new Card("Card6", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 },
+        new Card("Card7", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 },
+        new Card("Card8", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 }
+    };
 
-   _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
-   _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+    _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
+    _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
 
-   var context = new DefaultHttpContext();
-   var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
-   context.User = new ClaimsPrincipal(identity);
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
+    context.User = new ClaimsPrincipal(identity);
 
-   var battleRequest = new BattleRequest { OpponentUsername = "player2" };
-   var stream = new MemoryStream();
+    var battleRequest = new BattleRequest { OpponentUsername = "player2" };
+    var stream = new MemoryStream();
 
-   // Act
-   await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+    // Setup UpdateStats to accept any changes
+    _userStatsRepositoryMock
+        .Setup(r => r.UpdateStats(It.IsAny<UserStats>()))
+        .Verifiable();
 
-   // Assert
-   _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
-       s.GamesPlayed == 1 && s.Draws == 1)), 
-       Times.Exactly(2));
+    // Act
+    await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+
+    // Assert
+    _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
+        s.GamesPlayed == 1 && s.Draws == 1)), Times.Exactly(2));
+}
+
+[Test]
+public async Task HandleGetProfileAsync_UserExists_ReturnsOkWithProfile()
+{
+    // Arrange
+    var user = new User { Id = 1, Username = "testuser" };
+    var profile = new UserProfile 
+    { 
+        UserId = 1, 
+        Name = "Test User", 
+        Bio = "Test Bio", 
+        Image = "test.jpg" 
+    };
+
+    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+    _userRepositoryMock.Setup(r => r.GetUserProfile(1)).Returns(profile);
+
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
+    context.User = new ClaimsPrincipal(identity);
+
+    var stream = new MemoryStream();
+
+    // Act
+    await _server.HandleGetProfileAsync(stream, context);
+
+    // Assert
+    var response = Encoding.UTF8.GetString(stream.ToArray());
+    Assert.That(response, Contains.Substring("200 OK"));
+    Assert.That(response, Contains.Substring("Test User"));
+    Assert.That(response, Contains.Substring("Test Bio"));
+}
+
+[Test]
+public async Task HandleGetProfileAsync_UserNotFound_Returns404()
+{
+    // Arrange
+    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns((User)null);
+
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
+    context.User = new ClaimsPrincipal(identity);
+
+    var stream = new MemoryStream();
+
+    // Act
+    await _server.HandleGetProfileAsync(stream, context);
+
+    // Assert
+    var response = Encoding.UTF8.GetString(stream.ToArray());
+    Assert.That(response, Contains.Substring("404 Not Found"));
+}
+
+[Test]
+public async Task HandleUpdateProfileAsync_ValidProfile_ReturnsOk()
+{
+    // Arrange
+    var user = new User { Id = 1, Username = "testuser" };
+    var profile = new UserProfile 
+    { 
+        UserId = 1, 
+        Name = "Updated Name", 
+        Bio = "Updated Bio", 
+        Image = "updated.jpg" 
+    };
+
+    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+    _userRepositoryMock.Setup(r => r.UpdateProfile(It.IsAny<UserProfile>())).Verifiable();
+
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
+    context.User = new ClaimsPrincipal(identity);
+
+    var stream = new MemoryStream();
+    var body = JsonSerializer.Serialize(profile);
+
+    // Act
+    await _server.HandleUpdateProfileAsync(stream, body, context);
+
+    // Assert
+    var response = Encoding.UTF8.GetString(stream.ToArray());
+    Assert.That(response, Contains.Substring("200 OK"));
+    _userRepositoryMock.Verify(r => r.UpdateProfile(It.Is<UserProfile>(p => 
+        p.Name == "Updated Name" && 
+        p.Bio == "Updated Bio" && 
+        p.Image == "updated.jpg")), Times.Once);
+}
+
+[Test]
+public async Task HandleUpdateProfileAsync_UserNotFound_Returns404()
+{
+    // Arrange
+    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns((User)null);
+
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
+    context.User = new ClaimsPrincipal(identity);
+
+    var stream = new MemoryStream();
+    var profile = new UserProfile { Name = "Test", Bio = "Test" };
+    var body = JsonSerializer.Serialize(profile);
+
+    // Act
+    await _server.HandleUpdateProfileAsync(stream, body, context);
+
+    // Assert
+    var response = Encoding.UTF8.GetString(stream.ToArray());
+    Assert.That(response, Contains.Substring("404 Not Found"));
+    _userRepositoryMock.Verify(r => r.UpdateProfile(It.IsAny<UserProfile>()), Times.Never);
+}
+
+[Test]
+public void GetUserProfile_ReturnsCorrectProfile()
+{
+    // Arrange
+    var userId = 1;
+    var expectedProfile = new UserProfile 
+    { 
+        UserId = userId, 
+        Name = "Test User", 
+        Bio = "Test Bio" 
+    };
+
+    _userRepositoryMock.Setup(r => r.GetUserProfile(userId)).Returns(expectedProfile);
+
+    // Act
+    var result = _userRepositoryMock.Object.GetUserProfile(userId);
+
+    // Assert
+    Assert.That(result, Is.Not.Null);
+    Assert.That(result.Name, Is.EqualTo("Test User"));
+    Assert.That(result.Bio, Is.EqualTo("Test Bio"));
+}
+
+[Test]
+public void UpdateProfile_CallsRepositoryWithCorrectData()
+{
+    // Arrange
+    var profile = new UserProfile 
+    { 
+        UserId = 1, 
+        Name = "Test User", 
+        Bio = "Test Bio" 
+    };
+
+    _userRepositoryMock.Setup(r => r.UpdateProfile(It.IsAny<UserProfile>())).Verifiable();
+
+    // Act
+    _userRepositoryMock.Object.UpdateProfile(profile);
+
+    // Assert
+    _userRepositoryMock.Verify(r => r.UpdateProfile(It.Is<UserProfile>(p => 
+        p.UserId == 1 && 
+        p.Name == "Test User" && 
+        p.Bio == "Test Bio")), Times.Once);
 }
 
         [TearDown]

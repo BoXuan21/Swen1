@@ -63,5 +63,30 @@ namespace MCTG
         FROM users 
         ORDER BY elo DESC");
         }
+        
+        public UserProfile GetUserProfile(int userId)
+        {
+            using var connection = new NpgsqlConnection(_connectionString);
+            return connection.QuerySingleOrDefault<UserProfile>(@"
+            SELECT user_id as UserId, name, bio, image 
+            FROM user_profiles 
+            WHERE user_id = @UserId",
+                new { UserId = userId });
+        } 
+        public void UpdateProfile(UserProfile profile)
+        {
+            using var connection = new NpgsqlConnection(_connectionString);
+            connection.Execute(@"
+            INSERT INTO user_profiles (user_id, name, bio, image)
+            VALUES (@UserId, @Name, @Bio, @Image)
+            ON CONFLICT (user_id) 
+            DO UPDATE SET 
+                name = @Name,
+                bio = @Bio,
+                image = @Image",
+                profile);
+        }
+        
+        
     }
 }
