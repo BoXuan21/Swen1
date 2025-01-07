@@ -437,7 +437,7 @@ public async Task HandleGetProfileAsync_UserExists_ReturnsOkWithProfile()
     var stream = new MemoryStream();
 
     // Act
-    await _server.HandleGetProfileAsync(stream, context);
+    await _server.HandleGetProfileAsync(stream, "testuser", context);
 
     // Assert
     var response = Encoding.UTF8.GetString(stream.ToArray());
@@ -459,7 +459,7 @@ public async Task HandleGetProfileAsync_UserNotFound_Returns404()
     var stream = new MemoryStream();
 
     // Act
-    await _server.HandleGetProfileAsync(stream, context);
+    await _server.HandleGetProfileAsync(stream, "testuser", context);
 
     // Assert
     var response = Encoding.UTF8.GetString(stream.ToArray());
@@ -490,7 +490,7 @@ public async Task HandleUpdateProfileAsync_ValidProfile_ReturnsOk()
     var body = JsonSerializer.Serialize(profile);
 
     // Act
-    await _server.HandleUpdateProfileAsync(stream, body, context);
+    await _server.HandleUpdateProfileAsync(stream, "testuser", body, context);
 
     // Assert
     var response = Encoding.UTF8.GetString(stream.ToArray());
@@ -516,12 +516,34 @@ public async Task HandleUpdateProfileAsync_UserNotFound_Returns404()
     var body = JsonSerializer.Serialize(profile);
 
     // Act
-    await _server.HandleUpdateProfileAsync(stream, body, context);
+    await _server.HandleUpdateProfileAsync(stream, "testuser", body, context);
 
     // Assert
     var response = Encoding.UTF8.GetString(stream.ToArray());
     Assert.That(response, Contains.Substring("404 Not Found"));
     _userRepositoryMock.Verify(r => r.UpdateProfile(It.IsAny<UserProfile>()), Times.Never);
+}
+
+// Add test for unauthorized access
+[Test]
+public async Task HandleGetProfileAsync_UnauthorizedAccess_Returns403()
+{
+    // Arrange
+    var user = new User { Id = 1, Username = "testuser" };
+    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+
+    var context = new DefaultHttpContext();
+    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "differentuser") }, "test");
+    context.User = new ClaimsPrincipal(identity);
+
+    var stream = new MemoryStream();
+
+    // Act
+    await _server.HandleGetProfileAsync(stream, "testuser", context);
+
+    // Assert
+    var response = Encoding.UTF8.GetString(stream.ToArray());
+    Assert.That(response, Contains.Substring("403 Forbidden"));
 }
 
 [Test]

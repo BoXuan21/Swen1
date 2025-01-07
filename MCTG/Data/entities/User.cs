@@ -8,14 +8,14 @@
         public Stack Stack { get; set; }
         public List<Card> Deck { get; set; }
         public int Coins { get; set; } = 20;
-        public int Elo { get; set; } = 100;  // Changed from string to int for easier calculation
+        public int Elo { get; set; } = 100;
         
         // Constructor for new users
         public User()
         {
             Deck = new List<Card>();
             Stack = new Stack();
-        }
+        }   
         
 
         // Constructor for database mapping

@@ -119,11 +119,15 @@ namespace MCTG
                     case "GET /cards":
                         await HandleGetCardsAsync(stream, context);
                         break;
-                    case "POST /packages":
+                    case "POST /transactions/packages":
                         await HandleBuyPackageAsync(stream, body, context);
                         break;
                     
-                    case "POST/battle":
+                    case "POST /packages":
+                        await HandleCreatePackageAsync(stream, context, body);
+                        break;
+                    
+                    case "POST /battles": 
                         await HandleBattleAsync(stream, context, body);
                         break;
 
@@ -139,7 +143,7 @@ namespace MCTG
                     case "GET /stats":
                         await HandleGetStatsAsync(stream, context);
                         break;
-                    case "GET /score":
+                    case "GET /scoreboard":
                         await HandleGetScoreboardAsync(stream);
                         break;
 
@@ -150,7 +154,8 @@ namespace MCTG
                     case "POST /tradings":
                         await HandleCreateTradeAsync(stream, body, context);
                         break;
-                    case "DELETE /tradings":
+                    
+                    case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
                         await HandleDeleteTradeAsync(stream, path, context);
                         break;
                     
@@ -158,15 +163,13 @@ namespace MCTG
                         await HandleGetBattleHistoryAsync(stream, context);
                         break;
                     
-                    case "GET /users/profile":
-                        await HandleGetProfileAsync(stream, context);
+                    case var profilePath when path.StartsWith("/users/") && method == "GET":
+                        await HandleGetProfileAsync(stream, path.Split('/')[2], context);
                         break;
-    
-                    case "PUT /users/profile":
-                        await HandleUpdateProfileAsync(stream, body, context);
+                    case var profilePath when path.StartsWith("/users/") && method == "PUT":
+                        await HandleUpdateProfileAsync(stream, path.Split('/')[2], body, context);
                         break;
                     
-
                     default:
                         await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
                         break;
@@ -187,9 +190,10 @@ namespace MCTG
             }
         }
         
-        public async Task HandleGetProfileAsync(Stream stream, HttpContext context)
+        // To
+        public async Task HandleGetProfileAsync(Stream stream, string username, HttpContext context)
         {
-            var username = context.User.Identity.Name;
+            var requestingUser = context.User.Identity.Name;
             var user = _userRepository.GetByUsername(username);
     
             if (user == null)
@@ -198,9 +202,42 @@ namespace MCTG
                 return;
             }
 
+            // Only allow users to view their own profile
+            if (requestingUser != username)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Access denied");
+                return;
+            }
+
             var profile = _userRepository.GetUserProfile(user.Id);
             var response = JsonSerializer.Serialize(profile);
             await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+        }
+
+// And update the update profile method similarly
+        public async Task HandleUpdateProfileAsync(Stream stream, string username, string body, HttpContext context)
+        {
+            var requestingUser = context.User.Identity.Name;
+            var user = _userRepository.GetByUsername(username);
+    
+            if (user == null)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                return;
+            }
+
+            // Only allow users to update their own profile
+            if (requestingUser != username)
+            {
+                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Access denied");
+                return;
+            }
+
+            var profile = JsonSerializer.Deserialize<UserProfile>(body);
+            profile.UserId = user.Id;
+    
+            _userRepository.UpdateProfile(profile);
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Profile updated successfully");
         }
 
         public async Task HandleUpdateProfileAsync(Stream stream, string body, HttpContext context)
@@ -313,7 +350,7 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
         {
             try
             {
-                Console.WriteLine($"Attempting to deserialize: {body}");
+                Console.WriteLine($"Attempting registration with body: {body}");
                 
                 var options = new JsonSerializerOptions
                 {
@@ -321,19 +358,27 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
                 };
                 
                 var user = JsonSerializer.Deserialize<User>(body, options);
+                Console.WriteLine($"Deserialized user: {user?.Username}");
                 
                 if (user == null || string.IsNullOrEmpty(user.Username) || string.IsNullOrEmpty(user.Password))
                 {
+                    Console.WriteLine("Invalid user data");
                     await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid user data");
                     return;
                 }
 
+                // Add initial coins and ELO
+                user.Coins = 20;  // Starting coins
+                user.Elo = 100;   // Starting ELO
+
                 _userRepository.Add(user);
+                Console.WriteLine($"User {user.Username} registered successfully");
                 await SendResponseAsync(stream, "HTTP/1.1 201 Created", "User created successfully");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Registration error: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", $"Registration failed: {ex.Message}");
             }
         }
@@ -542,31 +587,52 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
 
         public async Task HandleDeleteTradeAsync(Stream stream, string path, HttpContext context)
         {
-            var tradeId = int.Parse(path.Split('/').Last());
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
+            try 
+            {
+                // Parse trading ID from path (e.g., /tradings/123)
+                var pathParts = path.Split('/');
+                if (pathParts.Length < 3)
+                {
+                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
+                    return;
+                }
+
+                if (!int.TryParse(pathParts[2], out int tradeId))
+                {
+                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
+                    return;
+                }
+
+                var username = context.User.Identity.Name;
+                var user = _userRepository.GetByUsername(username);
             
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+                if (user == null)
+                {
+                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                    return;
+                }
 
-            var trade = _tradeRepository.GetTradeById(tradeId);
-            if (trade == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
-                return;
-            }
+                var trade = _tradeRepository.GetTradeById(tradeId);
+                if (trade == null)
+                {
+                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
+                    return;
+                }
 
-            if (trade.UserId != user.Id)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot delete another user's trade");
-                return;
-            }
+                if (trade.UserId != user.Id)
+                {
+                    await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot delete another user's trade");
+                    return;
+                }
 
-            _tradeRepository.DeleteTrade(tradeId);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade deleted successfully");
+                _tradeRepository.DeleteTrade(tradeId);
+                await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade deleted successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleDeleteTradeAsync: {ex.Message}");
+                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "Failed to delete trade");
+            }
         }
 
         public async Task SendResponseAsync(Stream stream, string status, string content)

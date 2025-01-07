@@ -1,22 +1,9 @@
 @echo off
-
 REM --------------------------------------------------
 REM Monster Trading Cards Game
 REM --------------------------------------------------
 title Monster Trading Cards Game
 echo CURL Testing for Monster Trading Cards Game
-echo Syntax: $1 [pause]
-echo - pause: optional, if set, the script will pause after each block
-echo.
-
-set "pauseFlag=0"
-for %%a in (%*) do (
-    if /I "%%a"=="pause" (
-        set "pauseFlag=1"
-    )
-)
-
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 1) Create Users (Registration)
@@ -31,7 +18,6 @@ curl -i -X POST http://localhost:10001/users --header "Content-Type: application
 echo "Should return HTTP 201"
 echo.
 
-if %pauseFlag%==1 pause
 
 echo should fail:
 curl -i -X POST http://localhost:10001/users --header "Content-Type: application/json" -d "{\"Username\":\"kienboec\", \"Password\":\"daniel\"}"
@@ -42,7 +28,6 @@ echo "Should return HTTP 4xx - User already exists"
 echo. 
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 2) Login Users
@@ -56,15 +41,12 @@ curl -i -X POST http://localhost:10001/sessions --header "Content-Type: applicat
 echo "should return HTTP 200 with generated token for the user, here: admin-mtcgToken"
 echo.
 
-if %pauseFlag%==1 pause
 
 echo should fail:
 curl -i -X POST http://localhost:10001/sessions --header "Content-Type: application/json" -d "{\"Username\":\"kienboec\", \"Password\":\"different\"}"
 echo "Should return HTTP 4xx - Login failed"
 echo.
 echo.
-
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 3) create packages (done by "admin")
@@ -110,7 +92,6 @@ echo "Should return HTTP 4xx - Not enough money"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 5) acquire packages altenhof
@@ -126,7 +107,6 @@ echo "Should return HTTP 4xx - No packages available"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 6) add new packages
@@ -140,8 +120,6 @@ curl -i -X POST http://localhost:10001/packages --header "Content-Type: applicat
 echo "Should return HTTP 201"
 echo.
 echo.
-
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 7) acquire newly created packages altenhof
@@ -169,8 +147,6 @@ echo "Should return HTTP 4xx - Unauthorized"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
-
 REM --------------------------------------------------
 echo 9) show all acquired cards altenhof
 curl -i -X GET http://localhost:10001/cards --header "Authorization: Bearer altenhof-mtcgToken"
@@ -178,7 +154,6 @@ echo "Should return HTTP 200 - and a list of all cards"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 10) show unconfigured deck
@@ -190,7 +165,6 @@ echo "Should return HTTP 200 - and a empty-list"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 11) configure deck
@@ -208,7 +182,6 @@ echo "Should return HTTP 200 - and a list of all cards"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 echo should fail and show original from before:
 curl -i -X PUT http://localhost:10001/deck --header "Content-Type: application/json" --header "Authorization: Bearer altenhof-mtcgToken" -d "[\"845f0dc7-37d0-426e-994e-43fc3ac83c08\", \"99f8f8dc-e25e-4a95-aa2c-782823f36e2a\", \"e85e3976-7c86-4d06-9a80-641c2019a79f\", \"171f6076-4eb5-4a7d-b3f2-2d650cc3d237\"]"
 echo "Should return HTTP 4xx"
@@ -222,7 +195,6 @@ curl -i -X PUT http://localhost:10001/deck --header "Content-Type: application/j
 echo "Should return HTTP 4xx - Bad request"
 echo.
 
-if %pauseFlag%==1 pause
 
 
 REM --------------------------------------------------
@@ -235,7 +207,7 @@ echo "Should return HTTP 200 - and a list of all cards"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
+
 
 REM --------------------------------------------------
 echo 13) show configured deck different representation
@@ -250,7 +222,6 @@ echo "Should return HTTP 200 - and a list of all cards"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 14) edit user data
@@ -275,7 +246,6 @@ echo "Should return HTTP 200 - and new user data"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 echo should fail:
 curl -i -X GET http://localhost:10001/users/altenhof --header "Authorization: Bearer kienboec-mtcgToken"
@@ -295,8 +265,6 @@ echo "Should return HTTP 4xx"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
-
 REM --------------------------------------------------
 echo 15) stats
 curl -i -X GET http://localhost:10001/stats --header "Authorization: Bearer kienboec-mtcgToken"
@@ -307,7 +275,6 @@ echo "Should return HTTP 200 - and user stats"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 16) scoreboard
@@ -316,7 +283,6 @@ echo "Should return HTTP 200 - and the scoreboard"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 17) battle
@@ -324,7 +290,7 @@ start /b "kienboec battle" curl -i -X POST http://localhost:10001/battles --head
 start /b "altenhof battle" curl -i -X POST http://localhost:10001/battles --header "Authorization: Bearer altenhof-mtcgToken"
 ping localhost -n 10 >NUL 2>NUL
 
-if %pauseFlag%==1 pause
+
 
 REM --------------------------------------------------
 echo 18) Stats 
@@ -338,7 +304,7 @@ echo "Should return HTTP 200 - and changed user stats"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
+´
 
 REM --------------------------------------------------
 echo 19) scoreboard
@@ -347,7 +313,6 @@ echo "Should return HTTP 200 - and the changed scoreboard"
 echo.
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo 20) trade
@@ -360,7 +325,6 @@ curl -i -X POST http://localhost:10001/tradings --header "Content-Type: applicat
 echo "Should return HTTP 201"
 echo.
 
-if %pauseFlag%==1 pause
 
 echo check trading deals
 curl -i -X GET http://localhost:10001/tradings --header "Authorization: Bearer kienboec-mtcgToken"
@@ -395,14 +359,13 @@ curl -i -X GET http://localhost:10001/tradings  --header "Authorization: Bearer 
 echo "Should return HTTP 200 ..."
 echo.
 
-if %pauseFlag%==1 pause
+
 
 echo try to trade with yourself (should fail)
 curl -i -X POST http://localhost:10001/tradings/6cd85277-4590-49d4-b0cf-ba0a921faad0 --header "Content-Type: application/json" --header "Authorization: Bearer kienboec-mtcgToken" -d "\"4ec8b269-0dfa-4f97-809a-2c63fe2a0025\""
 echo "Should return HTTP 4xx"
 echo.
 
-if %pauseFlag%==1 pause
 
 echo try to trade 
 echo.
@@ -416,7 +379,6 @@ curl -i -X GET http://localhost:10001/tradings --header "Authorization: Bearer a
 echo "Should return HTTP 200 ..."
 echo.
 
-if %pauseFlag%==1 pause
 
 REM --------------------------------------------------
 echo end...
