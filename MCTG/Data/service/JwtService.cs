@@ -1,5 +1,4 @@
-﻿using System;
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
@@ -12,7 +11,6 @@ namespace MCTG
 
         public JwtService(string secretKey)
         {
-            // Ensure the secret key has a sufficient length
             if (secretKey.Length < 16)
             {
                 throw new ArgumentException("Secret key must be at least 16 characters long.");

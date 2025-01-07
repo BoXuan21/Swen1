@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 using System.Text.Json;
-using System.IO;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 
 namespace MCTG
@@ -53,142 +47,177 @@ namespace MCTG
         }
 
         private async void HandleClient(object obj)
-        {
-            TcpClient client = (TcpClient)obj;
-            using NetworkStream networkStream = client.GetStream();
-            
-            try
-            {
-                // Read request
-                byte[] buffer = new byte[1024];
-                int bytesRead = await networkStream.ReadAsync(buffer, 0, buffer.Length);
-                string request = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+{
+    TcpClient client = (TcpClient)obj;
+    using NetworkStream networkStream = client.GetStream();
+    
+    try
+    {
+        // Read request
+        byte[] buffer = new byte[4096]; // Increased buffer size
+        using var ms = new MemoryStream();
         
-                Console.WriteLine("Received request:");
-                Console.WriteLine(request);
+        int bytesRead;
+        bool headerComplete = false;
+        int contentLength = 0;
+        int totalBytesRead = 0;
+        
+        // Read the initial request
+        bytesRead = await networkStream.ReadAsync(buffer, 0, buffer.Length);
+        if (bytesRead == 0) return; // Connection closed
+        
+        string initialRequest = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+        
+        // Parse content length
+        var contentLengthMatch = System.Text.RegularExpressions.Regex.Match(initialRequest, @"Content-Length: (\d+)");
+        if (contentLengthMatch.Success)
+        {
+            contentLength = int.Parse(contentLengthMatch.Groups[1].Value);
+        }
+        
+        // Write initial bytes to memory stream
+        ms.Write(buffer, 0, bytesRead);
+        totalBytesRead = bytesRead;
 
-                // Parse the HTTP request
-                string[] requestLines = request.Split("\r\n");
-                string[] requestLine = requestLines[0].Split(' ');
-                string method = requestLine[0];
-                string path = requestLine[1];
+        // If we haven't received all the data, keep reading
+        while (totalBytesRead < contentLength + initialRequest.IndexOf("\r\n\r\n") + 4)
+        {
+            bytesRead = await networkStream.ReadAsync(buffer, 0, buffer.Length);
+            if (bytesRead == 0) break; // Connection closed
+            ms.Write(buffer, 0, bytesRead);
+            totalBytesRead += bytesRead;
+        }
 
-                Console.WriteLine($"Method: {method}, Path: {path}");
+        // Reset position to start
+        ms.Position = 0;
+        
+        // Convert to string for processing
+        string request = Encoding.UTF8.GetString(ms.ToArray());
+        
+        Console.WriteLine("Received request:");
+        Console.WriteLine(request);
 
-                // Get request body
-                string body = "";
-                bool readingBody = false;
-                foreach (string line in requestLines)
-                {
-                    if (readingBody)
-                    {
-                        body += line;
-                    }
-                    else if (string.IsNullOrEmpty(line))
-                    {
-                        readingBody = true;
-                    }
-                }
+        // Parse the HTTP request
+        string[] requestLines = request.Split("\r\n");
+        string[] requestLine = requestLines[0].Split(' ');
+        string method = requestLine[0];
+        string path = requestLine[1];
 
-                Console.WriteLine($"Body: {body}");
+        Console.WriteLine($"Method: {method}, Path: {path}");
 
-                // Create HttpContext for authentication
-                var context = new DefaultHttpContext();
-                context.Request.Method = method;
-                context.Request.Path = path;
-                context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
-
-                await _jwtMiddleware.Invoke(context);
-
-                // Convert NetworkStream to MemoryStream for testing purposes
-                var stream = new MemoryStream();
-                await networkStream.CopyToAsync(stream);
-                stream.Seek(0, SeekOrigin.Begin);
-
-                switch (method + " " + path)
-                {
-                    // Auth endpoints
-                    case "POST /users":
-                        await HandleRegistrationAsync(stream, body);
-                        break;
-                    case "POST /sessions":
-                        await HandleLoginAsync(stream, body);
-                        break;
-
-                    // Cards endpoints
-                    case "GET /cards":
-                        await HandleGetCardsAsync(stream, context);
-                        break;
-                    case "POST /transactions/packages":
-                        await HandleBuyPackageAsync(stream, body, context);
-                        break;
-                    
-                    case "POST /packages":
-                        await HandleCreatePackageAsync(stream, context, body);
-                        break;
-                    
-                    case "POST /battles": 
-                        await HandleBattleAsync(stream, context, body);
-                        break;
-
-                    // Deck endpoints
-                    case "GET /deck":
-                        await HandleGetDeckAsync(stream, context);
-                        break;
-                    case "PUT /deck":
-                        await HandleConfigureDeckAsync(stream, body, context);
-                        break;
-
-                    // Stats endpoints
-                    case "GET /stats":
-                        await HandleGetStatsAsync(stream, context);
-                        break;
-                    case "GET /scoreboard":
-                        await HandleGetScoreboardAsync(stream);
-                        break;
-
-                    // Trading endpoints
-                    case "GET /tradings":
-                        await HandleGetTradingsAsync(stream);
-                        break;
-                    case "POST /tradings":
-                        await HandleCreateTradeAsync(stream, body, context);
-                        break;
-                    
-                    case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
-                        await HandleDeleteTradeAsync(stream, path, context);
-                        break;
-                    
-                    case "GET /history":
-                        await HandleGetBattleHistoryAsync(stream, context);
-                        break;
-                    
-                    case var profilePath when path.StartsWith("/users/") && method == "GET":
-                        await HandleGetProfileAsync(stream, path.Split('/')[2], context);
-                        break;
-                    case var profilePath when path.StartsWith("/users/") && method == "PUT":
-                        await HandleUpdateProfileAsync(stream, path.Split('/')[2], body, context);
-                        break;
-                    
-                    default:
-                        await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
-                        break;
-                }
-
-                // Copy the response from MemoryStream back to NetworkStream
-                stream.Seek(0, SeekOrigin.Begin);
-                await stream.CopyToAsync(networkStream);
-            }
-            catch (Exception ex)
+        // Get request body
+        string body = "";
+        bool readingBody = false;
+        foreach (string line in requestLines)
+        {
+            if (readingBody)
             {
-                Console.WriteLine($"Error: {ex.Message}");
-                await SendResponseAsync(networkStream, "HTTP/1.1 500 Internal Server Error", ex.Message);
+                body += line;
             }
-            finally
+            else if (string.IsNullOrEmpty(line))
             {
-                client.Close();
+                readingBody = true;
             }
         }
+
+        Console.WriteLine($"Body: {body}");
+
+        // Create HttpContext for authentication
+        var context = new DefaultHttpContext();
+        context.Request.Method = method;
+        context.Request.Path = path;
+        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
+
+        await _jwtMiddleware.Invoke(context);
+
+        // Use a new MemoryStream for the response
+        using var responseStream = new MemoryStream();
+
+        switch (method + " " + path)
+        {
+            case "POST /users":
+                await HandleRegistrationAsync(responseStream, body);
+                break;
+            case "POST /sessions":
+                await HandleLoginAsync(responseStream, body);
+                break;
+
+            // Cards endpoints
+            case "GET /cards":
+                await HandleGetCardsAsync(responseStream, context);
+                break;
+            case "POST /transactions/packages":
+                await HandleBuyPackageAsync(responseStream, body, context);
+                break;
+            
+            case "POST /packages":
+                await HandleCreatePackageAsync(responseStream, context, body);
+                break;
+            
+            case "POST /battles": 
+                await HandleBattleAsync(responseStream, context, body);
+                break;
+
+            // Deck endpoints
+            case "GET /deck":
+                await HandleGetDeckAsync(responseStream, context);
+                break;
+            case "PUT /deck":
+                await HandleConfigureDeckAsync(responseStream, body, context);
+                break;
+
+            // Stats endpoints
+            case "GET /stats":
+                await HandleGetStatsAsync(responseStream, context);
+                break;
+            case "GET /scoreboard":
+                await HandleGetScoreboardAsync(responseStream);
+                break;
+
+            // Trading endpoints
+            case "GET /tradings":
+                await HandleGetTradingsAsync(responseStream);
+                break;
+            case "POST /tradings":
+                await HandleCreateTradeAsync(responseStream, body, context);
+                break;
+            
+            case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
+                await HandleDeleteTradeAsync(responseStream, path, context);
+                break;
+            
+            case "GET /history":
+                await HandleGetBattleHistoryAsync(responseStream, context);
+                break;
+            
+            case var profilePath when path.StartsWith("/users/") && method == "GET":
+                await HandleGetProfileAsync(responseStream, path.Split('/')[2], context);
+                break;
+            case var profilePath when path.StartsWith("/users/") && method == "PUT":
+                await HandleUpdateProfileAsync(responseStream, path.Split('/')[2], body, context);
+                break;
+            
+            default:
+                await SendResponseAsync(responseStream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
+                break;
+        }
+
+        // Send the response
+        responseStream.Position = 0;
+        await responseStream.CopyToAsync(networkStream);
+        await networkStream.FlushAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(networkStream, "HTTP/1.1 500 Internal Server Error", ex.Message);
+    }
+    finally
+    {
+        client.Close();
+    }
+}
         
         // To
         public async Task HandleGetProfileAsync(Stream stream, string username, HttpContext context)
@@ -351,15 +380,15 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
             try
             {
                 Console.WriteLine($"Attempting registration with body: {body}");
-                
+        
                 var options = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 };
-                
+        
                 var user = JsonSerializer.Deserialize<User>(body, options);
                 Console.WriteLine($"Deserialized user: {user?.Username}");
-                
+        
                 if (user == null || string.IsNullOrEmpty(user.Username) || string.IsNullOrEmpty(user.Password))
                 {
                     Console.WriteLine("Invalid user data");
@@ -373,7 +402,12 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
 
                 _userRepository.Add(user);
                 Console.WriteLine($"User {user.Username} registered successfully");
-                await SendResponseAsync(stream, "HTTP/1.1 201 Created", "User created successfully");
+
+                // Generate token after successful registration
+                string token = _jwtService.GenerateToken(user.Username);
+
+                // Send token in response
+                await SendResponseAsync(stream, "HTTP/1.1 201 Created", token);
             }
             catch (Exception ex)
             {
@@ -638,13 +672,15 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
         public async Task SendResponseAsync(Stream stream, string status, string content)
         {
             string response = $"{status}\r\n" +
-                            "Content-Type: application/json\r\n" +
-                            $"Content-Length: {content.Length}\r\n" +
-                            "\r\n" +
-                            content;
+                              "Content-Type: application/json\r\n" +
+                              "Access-Control-Allow-Origin: *\r\n" +
+                              $"Content-Length: {Encoding.UTF8.GetByteCount(content)}\r\n" +
+                              "\r\n" +
+                              content;
 
             byte[] responseBytes = Encoding.UTF8.GetBytes(response);
             await stream.WriteAsync(responseBytes, 0, responseBytes.Length);
+            await stream.FlushAsync();
         }
     }
 }
