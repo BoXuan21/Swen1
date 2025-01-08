@@ -27,7 +27,7 @@ namespace MCTG
                 {
                     card.Name,
                     card.Damage,
-                    Element = card.Element.ToString(),
+                    Element = card.ElementType.ToString(),
                     card.CardType,
                     userId
                 };
@@ -80,7 +80,7 @@ namespace MCTG
         WHERE id = @cardId";
 
             var card = connection.QuerySingleOrDefault<Card>(sql, new { cardId });
-            Console.WriteLine($"Retrieved card from DB: Id={card?.Id}, Type={card?.CardType}, Element={card?.Element}");
+            Console.WriteLine($"Retrieved card from DB: Id={card?.Id}, Type={card?.CardType}, Element={card?.ElementType}");
             return card;
         }
         

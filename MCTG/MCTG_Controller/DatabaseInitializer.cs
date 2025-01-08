@@ -17,8 +17,12 @@ public class DatabaseInitializer
 
         // Drop existing tables
         connection.Execute(@"
-            DROP TABLE IF EXISTS trades;
-            DROP TABLE IF EXISTS cards;
+            DROP TABLE IF EXISTS trades CASCADE;
+            DROP TABLE IF EXISTS battle_history CASCADE;
+            DROP TABLE IF EXISTS user_stats CASCADE;
+            DROP TABLE IF EXISTS package_cards CASCADE;
+            DROP TABLE IF EXISTS cards CASCADE;
+            DROP TABLE IF EXISTS packages CASCADE;
             DROP TABLE IF EXISTS users CASCADE;
         ");
 
@@ -26,9 +30,9 @@ public class DatabaseInitializer
         var createUsersTable = @"
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
-                 username VARCHAR(255) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            coins INTEGER NOT NULL DEFAULT 20,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                coins INTEGER NOT NULL DEFAULT 20,
                 elo INTEGER NOT NULL DEFAULT 100
             )";
 
@@ -45,29 +49,30 @@ public class DatabaseInitializer
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )";
         
+        // Create battle_history table
         var createBattleHistoryTable = @"
-    CREATE TABLE IF NOT EXISTS battle_history (
-        id SERIAL PRIMARY KEY,
-        player1_id INTEGER REFERENCES users(id),
-        player2_id INTEGER REFERENCES users(id),
-        winner_id INTEGER REFERENCES users(id),
-        battle_log TEXT NOT NULL,
-        player1_elo_change INTEGER NOT NULL,
-        player2_elo_change INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )";
+            CREATE TABLE IF NOT EXISTS battle_history (
+                id SERIAL PRIMARY KEY,
+                player1_id INTEGER REFERENCES users(id),
+                player2_id INTEGER REFERENCES users(id),
+                winner_id INTEGER REFERENCES users(id),
+                battle_log TEXT NOT NULL,
+                player1_elo_change INTEGER NOT NULL,
+                player2_elo_change INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )";
         
-        //create UserStatsTable
+        // Create user_stats table
         var createUserStatsTable = @"
-    CREATE TABLE IF NOT EXISTS user_stats (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        games_played INTEGER DEFAULT 0,
-        wins INTEGER DEFAULT 0,
-        losses INTEGER DEFAULT 0,
-        draws INTEGER DEFAULT 0,
-        elo INTEGER DEFAULT 100
-    )";
+            CREATE TABLE IF NOT EXISTS user_stats (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                games_played INTEGER DEFAULT 0,
+                wins INTEGER DEFAULT 0,
+                losses INTEGER DEFAULT 0,
+                draws INTEGER DEFAULT 0,
+                elo INTEGER DEFAULT 100
+            )";
 
         // Create trades table
         var createTradesTable = @"
@@ -80,9 +85,31 @@ public class DatabaseInitializer
                 FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )";
+        
+        // Create packages table
+        var createPackagesTable = @"
+            CREATE TABLE IF NOT EXISTS packages (
+                id SERIAL PRIMARY KEY,
+                is_sold BOOLEAN DEFAULT false,
+                bought_by_user_id INTEGER REFERENCES users(id),
+                purchase_date TIMESTAMP
+            )";
 
+        // Create package_cards table
+        var createPackageCardsTable = @"
+            CREATE TABLE IF NOT EXISTS package_cards (
+                package_id INTEGER REFERENCES packages(id) ON DELETE CASCADE,
+                card_id INTEGER REFERENCES cards(id) ON DELETE CASCADE,
+                PRIMARY KEY (package_id, card_id)
+            )";
+
+        // Execute all CREATE statements in correct order
         connection.Execute(createUsersTable);
+        connection.Execute(createPackagesTable);
         connection.Execute(createCardsTable);
+        connection.Execute(createPackageCardsTable);
+        connection.Execute(createBattleHistoryTable);
+        connection.Execute(createUserStatsTable);
         connection.Execute(createTradesTable);
 
         // Verify the foreign key constraints
@@ -105,5 +132,7 @@ public class DatabaseInitializer
         {
             Console.WriteLine($"Table {constraint.table_name}: Column {constraint.column_name} references {constraint.foreign_table_name}({constraint.foreign_column_name})");
         }
+
+        Console.WriteLine("Database initialized successfully");
     }
 }

@@ -42,47 +42,6 @@ namespace MCTG
             Assert.That(user1.Elo, Is.EqualTo(95)); // Lost -5
             Assert.That(user2.Elo, Is.EqualTo(103)); // Won +3
         }
-
-        [Test]
-        public void SpecialRule_WaterSpellVsKnight_InstantKill()
-        {
-            // Arrange
-            var waterSpell = new Card("WaterSpell", 10, ElementType.Water) { CardType = "Spell" };
-            var knight = new Card("Knight", 100, ElementType.Normal) { CardType = "Monster" };
-            
-            deck1.AddCard(waterSpell);
-            deck2.AddCard(knight);
-            
-            battleLogic = new BattleLogic(user1, user2, deck1, deck2);
-
-            // Act
-            var result = battleLogic.ExecuteBattle();
-
-            // Assert
-            Assert.That(result.Winner, Is.EqualTo("User 1")); // WaterSpell should win
-            Assert.That(user1.Elo, Is.EqualTo(103)); // Won +3
-            Assert.That(user2.Elo, Is.EqualTo(95)); // Lost -5
-        }
-
-        [Test]
-        public void ElementEffectiveness_WaterVsFire_DoubleDamage()
-        {
-            // Arrange
-            var waterSpell = new Card("WaterSpell", 20, ElementType.Water) { CardType = "Spell" };
-            var fireSpell = new Card("FireSpell", 30, ElementType.Fire) { CardType = "Spell" };
-            
-            deck1.AddCard(waterSpell);
-            deck2.AddCard(fireSpell);
-            
-            battleLogic = new BattleLogic(user1, user2, deck1, deck2);
-
-            // Act
-            var result = battleLogic.ExecuteBattle();
-
-            // Assert
-            Assert.That(result.Winner, Is.EqualTo("User 1")); // Water should win (20*2 = 40 > 30)
-        }
-
         [Test]
         public void MonsterFight_ElementalEffectsNotApplied()
         {

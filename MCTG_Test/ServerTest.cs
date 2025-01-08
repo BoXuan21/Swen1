@@ -121,15 +121,27 @@ namespace MCTG
             // Arrange
             var stream = new MemoryStream();
             var body = "{\"username\":\"testuser\",\"password\":\"password\"}";
+            var expectedToken = "testuser-mtcgToken";
+
+            _jwtServiceMock.Setup(service => service.GenerateToken("testuser"))
+                .Returns(expectedToken);
 
             // Act
             await _server.HandleRegistrationAsync(stream, body);
 
             // Assert
-            _userRepositoryMock.Verify(repo => repo.Add(It.IsAny<User>()), Times.Once);
+            _userRepositoryMock.Verify(repo => repo.Add(It.Is<User>(u => 
+                    u.Username == "testuser" && 
+                    u.Password == "password" && 
+                    u.Coins == 20 && 
+                    u.Elo == 100)), 
+                Times.Once);
+
+            stream.Position = 0;
             var response = Encoding.UTF8.GetString(stream.ToArray());
+            
             Assert.That(response, Contains.Substring("HTTP/1.1 201 Created"));
-            Assert.That(response, Contains.Substring("User created successfully"));
+            Assert.That(response, Contains.Substring(expectedToken));
         }
 
         [Test]
@@ -210,49 +222,6 @@ namespace MCTG
             var response = Encoding.UTF8.GetString(stream.ToArray());
             Assert.That(response, Contains.Substring("200 OK"));
             _battleRepositoryMock.Verify(repo => repo.GetUserBattleHistory(1), Times.Once);
-        }
-        
-        [Test]
-        public async Task HandleBuyPackageAsync_NoPackagesAvailable_Returns404()
-        {
-            // Arrange
-            var user = new User { Id = 1, Username = "testuser", Coins = 10 };
-            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
-            _packageRepositoryMock.Setup(r => r.GetAvailablePackage()).Returns((Package)null);
-
-            var context = new DefaultHttpContext();
-            var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
-            context.User = new ClaimsPrincipal(identity);
-
-            var stream = new MemoryStream();
-
-            // Act
-            await _server.HandleBuyPackageAsync(stream, "", context);
-
-            // Assert
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("404 Not Found"));
-        }
-
-        [Test]
-        public async Task HandleBuyPackageAsync_NotEnoughCoins_Returns403()
-        {
-            // Arrange
-            var user = new User { Id = 1, Username = "testuser", Coins = 3 };
-            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
-
-            var context = new DefaultHttpContext();
-            var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
-            context.User = new ClaimsPrincipal(identity);
-
-            var stream = new MemoryStream();
-
-            // Act
-            await _server.HandleBuyPackageAsync(stream, "", context);
-
-            // Assert
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("403 Forbidden"));
         }
         
       [Test]

@@ -2,15 +2,6 @@
 using Dapper;
 namespace MCTG;
 
-public class Package
-{
-    public int Id { get; set; }
-    public List<Card> Cards { get; set; }
-    public bool IsSold { get; set; }
-    public int? BoughtByUserId { get; set; }
-    public DateTime? PurchaseDate { get; set; }
-}
-
 public class PackageRepository : IPackageRepository
 {
     private readonly string _connectionString;
@@ -25,75 +16,199 @@ public class PackageRepository : IPackageRepository
     public void CreatePackage(List<Card> cards)
     {
         using var connection = new NpgsqlConnection(_connectionString);
+        connection.Open();
         using var transaction = connection.BeginTransaction();
 
         try
         {
+            Console.WriteLine("Creating new package...");
+        
+            // Get admin user id (or create a system user if needed)
+            var adminId = connection.QuerySingle<int>("SELECT id FROM users WHERE username = 'admin'");
+        
             // Create package
             var packageId = connection.QuerySingle<int>(
-                "INSERT INTO packages DEFAULT VALUES RETURNING id");
+                "INSERT INTO packages (is_sold) VALUES (false) RETURNING id");
+            Console.WriteLine($"Created package with ID: {packageId}");
 
             // Add cards to package
             foreach (var card in cards)
             {
-                var cardId = _cardRepository.AddCard(card, 0); // null userId means card is in package
+                DetermineCardTypes(card);
+                Console.WriteLine($"Adding card {card.Name} to package {packageId}");
+                var cardId = _cardRepository.AddCard(card, adminId);  // Use admin ID instead of null
                 connection.Execute(
                     "INSERT INTO package_cards (package_id, card_id) VALUES (@PackageId, @CardId)",
-                    new { PackageId = packageId, CardId = cardId });
+                    new { PackageId = packageId, CardId = cardId },
+                    transaction);
             }
 
             transaction.Commit();
+            Console.WriteLine("Package creation completed successfully");
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"Error creating package: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
             transaction.Rollback();
             throw;
         }
     }
 
-    public Package GetAvailablePackage()
+    private void DetermineCardTypes(Card card)
+    {
+        // Determine element type
+        if (card.Name.Contains("Water"))
+            card.ElementType = ElementType.Water;
+        else if (card.Name.Contains("Fire"))
+            card.ElementType = ElementType.Fire;
+        else if (card.Name.Contains("Regular"))
+            card.ElementType = ElementType.Regular;
+        else
+            card.ElementType = ElementType.Normal;
+
+        // Determine card type
+        if (card.Name.Contains("Spell"))
+            card.CardType = "Spell";
+        else if (card.Name.Contains("Goblin"))
+            card.CardType = "Goblin";
+        else if (card.Name.Contains("Dragon"))
+            card.CardType = "Dragon";
+        else if (card.Name.Contains("Wizard"))
+            card.CardType = "Wizard";
+        else if (card.Name.Contains("Ork"))
+            card.CardType = "Ork";
+        else if (card.Name.Contains("Knight"))
+            card.CardType = "Knight";
+        else if (card.Name.Contains("Kraken"))
+            card.CardType = "Kraken";
+        else if (card.Name.Contains("Elf"))
+            card.CardType = "Elf";
+        else
+            card.CardType = "Monster";
+    }
+
+    public Package? GetAvailablePackage()
     {
         using var connection = new NpgsqlConnection(_connectionString);
-        var packageId = connection.QuerySingleOrDefault<int?>(
-            "SELECT id FROM packages WHERE is_sold = false LIMIT 1");
-
-        if (!packageId.HasValue)
-            return null;
-
-        var cards = connection.Query<Card>(@"
-            SELECT c.* 
-            FROM cards c
-            JOIN package_cards pc ON pc.card_id = c.id
-            WHERE pc.package_id = @PackageId",
-            new { PackageId = packageId });
-
-        return new Package
+        connection.Open();
+        
+        try
         {
-            Id = packageId.Value,
-            Cards = cards.ToList(),
-            IsSold = false
-        };
+            var packageId = connection.QuerySingleOrDefault<int?>(
+                "SELECT id FROM packages WHERE is_sold = false ORDER BY id LIMIT 1");
+
+            if (!packageId.HasValue)
+                return null;
+
+            var cards = connection.Query<Card>(@"
+                SELECT c.* 
+                FROM cards c
+                JOIN package_cards pc ON pc.card_id = c.id
+                WHERE pc.package_id = @PackageId",
+                new { PackageId = packageId });
+
+            return new Package
+            {
+                Id = packageId.Value,
+                Cards = cards.ToList(),
+                IsSold = false
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting available package: {ex.Message}");
+            throw;
+        }
     }
 
     public void MarkPackageAsSold(int packageId, int userId)
     {
         using var connection = new NpgsqlConnection(_connectionString);
-        connection.Execute(@"
-            UPDATE packages 
-            SET is_sold = true, 
-                bought_by_user_id = @UserId,
-                purchase_date = CURRENT_TIMESTAMP
-            WHERE id = @PackageId",
-            new { PackageId = packageId, UserId = userId });
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            connection.Execute(@"
+                UPDATE packages 
+                SET is_sold = true, 
+                    bought_by_user_id = @UserId,
+                    purchase_date = CURRENT_TIMESTAMP
+                WHERE id = @PackageId",
+                new { PackageId = packageId, UserId = userId },
+                transaction);
+
+            connection.Execute(@"
+                UPDATE cards 
+                SET user_id = @UserId
+                WHERE id IN (
+                    SELECT card_id 
+                    FROM package_cards 
+                    WHERE package_id = @PackageId
+                )",
+                new { PackageId = packageId, UserId = userId },
+                transaction);
+
+            transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error marking package as sold: {ex.Message}");
+            transaction.Rollback();
+            throw;
+        }
     }
 
+    public bool PackageExists(int packageId)
+    {
+        using var connection = new NpgsqlConnection(_connectionString);
+        connection.Open();
+        return connection.ExecuteScalar<bool>(
+            "SELECT EXISTS(SELECT 1 FROM packages WHERE id = @PackageId)",
+            new { PackageId = packageId });
+    }
+
+    public bool IsPackageAvailable(int packageId)
+    {
+        using var connection = new NpgsqlConnection(_connectionString);
+        connection.Open();
+        return connection.ExecuteScalar<bool>(
+            "SELECT EXISTS(SELECT 1 FROM packages WHERE id = @PackageId AND is_sold = false)",
+            new { PackageId = packageId });
+    }
+
+    public int GetPackageCount()
+    {
+        using var connection = new NpgsqlConnection(_connectionString);
+        connection.Open();
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM packages WHERE is_sold = false");
+    }
+    
     public IEnumerable<Package> GetUserPurchaseHistory(int userId)
     {
         using var connection = new NpgsqlConnection(_connectionString);
-        return connection.Query<Package>(@"
-            SELECT * FROM packages
-            WHERE bought_by_user_id = @UserId
-            ORDER BY purchase_date DESC",
-            new { UserId = userId });
+        connection.Open();
+    
+        try
+        {
+            return connection.Query<Package>(@"
+            SELECT p.*, 
+                   ARRAY_AGG(c.*) as Cards
+            FROM packages p
+            LEFT JOIN package_cards pc ON pc.package_id = p.id
+            LEFT JOIN cards c ON c.id = pc.card_id
+            WHERE p.bought_by_user_id = @UserId
+            GROUP BY p.id, p.is_sold, p.bought_by_user_id, p.purchase_date
+            ORDER BY p.purchase_date DESC",
+                new { UserId = userId });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting user purchase history: {ex.Message}");
+            throw;
+        }
     }
+    
+    
 }

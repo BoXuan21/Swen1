@@ -30,7 +30,7 @@
             Console.WriteLine("Deck contains the following cards:");
             foreach (var card in Cards)
             {
-                Console.WriteLine($"{card.Name} - Damage: {card.Damage} - Element: {card.Element}");
+                Console.WriteLine($"{card.Name} - Damage: {card.Damage} - Element: {card.ElementType}");
             }
         }
 

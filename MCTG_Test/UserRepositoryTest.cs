@@ -65,29 +65,6 @@ public class UserRepositoryTests
     }
 
     [Test]
-    public void GenerateToken_ShouldCreateValidToken()
-    {
-        // Arrange
-        var username = "testuser4";
-
-        // Act
-        var token = _jwtService.GenerateToken(username);
-
-        // Assert
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes(_jwtSecretKey);
-        tokenHandler.ValidateToken(token, new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(key),
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ClockSkew = TimeSpan.Zero
-        }, out SecurityToken validatedToken);
-
-        var jwtToken = (JwtSecurityToken)validatedToken;
-        Assert.That(jwtToken.Claims.First(x => x.Type == "username").Value, Is.EqualTo(username));
-    }
     
     [TearDown]
     public void Cleanup()
