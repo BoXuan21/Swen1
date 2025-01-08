@@ -7,7 +7,7 @@ namespace MCTG
 {
     public class JwtService : IJwtService
     {
-        private readonly string _secretKey;
+        private readonly string _secretKey;  // Fixed the asterisk to underscore
 
         public JwtService(string secretKey)
         {
@@ -15,32 +15,28 @@ namespace MCTG
             {
                 throw new ArgumentException("Secret key must be at least 16 characters long.");
             }
-            _secretKey = secretKey;
+            _secretKey = secretKey;  // Fixed the asterisk to underscore
         }
 
         public string GenerateToken(string username)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_secretKey);
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim("username", username)
-                }),
-                Expires = DateTime.UtcNow.AddDays(7),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
+            return $"{username}-mtcgToken";
         }
 
         public string ValidateToken(string token)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_secretKey);
             try
             {
+                // If it's in the simple format (username-mtcgToken)
+                if (token.EndsWith("-mtcgToken"))
+                {
+                    return token.Replace("-mtcgToken", "");
+                }
+
+                // Fallback to JWT validation if needed
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.ASCII.GetBytes(_secretKey);
+                
                 tokenHandler.ValidateToken(token, new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
@@ -51,11 +47,11 @@ namespace MCTG
                 }, out SecurityToken validatedToken);
 
                 var jwtToken = (JwtSecurityToken)validatedToken;
-                var username = jwtToken.Claims.First(x => x.Type == ClaimTypes.Name).Value;
-                return username;
+                return jwtToken.Claims.First(x => x.Type == ClaimTypes.Name).Value;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Token validation error: {ex.Message}");
                 return null;
             }
         }

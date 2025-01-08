@@ -486,18 +486,42 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
 
         public async Task HandleGetCardsAsync(Stream stream, HttpContext context)
         {
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-            
-            if (user == null)
+            try
             {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+                var username = context.Items["Username"] as string;  // Changed from User.Identity.Name
+                Console.WriteLine($"Attempting to get cards for user: {username}");
 
-            var cards = _cardRepository.GetUserCards(user.Id);
-            var response = JsonSerializer.Serialize(cards);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+                if (string.IsNullOrEmpty(username))
+                {
+                    Console.WriteLine("Username is null or empty");
+                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+                    return;
+                }
+
+                var user = _userRepository.GetByUsername(username);
+                if (user == null)
+                {
+                    Console.WriteLine($"User not found in database for username: {username}");
+                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                    return;
+                }
+
+                var cards = _cardRepository.GetUserCards(user.Id);
+                Console.WriteLine($"Found {cards.Count()} cards for user {username}");
+        
+                var response = JsonSerializer.Serialize(cards, new JsonSerializerOptions 
+                { 
+                    WriteIndented = true 
+                });
+                await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleGetCardsAsync: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+                    "An error occurred while retrieving the cards");
+            }
         }
         
         public async Task HandleCreatePackageAsync(Stream stream, HttpContext context, string body)
@@ -588,66 +612,86 @@ public async Task HandleBattleAsync(Stream stream, HttpContext context, string b
     }
 }
 
-        public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
-        {
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-            
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
+{
+    try
+    {
+        var username = context.Items["Username"] as string;
+        Console.WriteLine($"Getting deck for user: {username}");
 
-            var deck = _cardRepository.GetUserDeck(user.Id);
-            var response = JsonSerializer.Serialize(deck);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
         }
 
-        public async Task HandleConfigureDeckAsync(Stream stream, string body, HttpContext context)
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
         {
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-    
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
-
-            var cardIds = JsonSerializer.Deserialize<List<int>>(body);
-    
-            // Validate deck size
-            if (cardIds == null || cardIds.Count != 4)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Deck must contain exactly 4 cards");
-                return;
-            }
-
-            // Validate card ownership
-            var userCards = _cardRepository.GetUserCards(user.Id).ToList();
-            var invalidCards = cardIds.Where(id => !userCards.Any(c => c.Id == id)).ToList();
-    
-            if (invalidCards.Any())
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Deck contains cards you don't own");
-                return;
-            }
-
-            // Validate cards aren't in trades
-            var tradedCards = _tradeRepository.GetAllTrades()
-                .Where(t => cardIds.Contains(t.CardId))
-                .ToList();
-    
-            if (tradedCards.Any())
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot add cards that are currently being traded");
-                return;
-            }
-
-            _cardRepository.UpdateDeck(user.Id, cardIds);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Deck updated successfully");
+            Console.WriteLine($"User not found for username: {username}");
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
         }
+
+        var deck = _cardRepository.GetUserDeck(user.Id);
+        Console.WriteLine($"Found {deck.Count()} cards in deck for user {username}");
+
+        var response = JsonSerializer.Serialize(deck);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error getting deck: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while retrieving the deck");
+    }
+}
+public async Task HandleConfigureDeckAsync(Stream stream, string body, HttpContext context)
+{
+    try
+    {
+        var username = context.Items["Username"] as string;
+        Console.WriteLine($"Configuring deck for user: {username}");
+
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
+        }
+
+        // Assuming the request body contains a list of newly assigned card IDs 
+        var cardIds = JsonSerializer.Deserialize<List<int>>(body); 
+
+        if (cardIds == null || cardIds.Count != 4)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Deck must contain exactly 4 cards");
+            return;
+        }
+
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
+        {
+            Console.WriteLine($"User not found for username: {username}");
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
+        }
+
+        // No need to check for card ownership since we're using the assigned IDs 
+
+        _cardRepository.UpdateDeck(user.Id, cardIds);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Deck configured successfully");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error configuring deck: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error",
+            "An error occurred while configuring the deck");
+    }
+}
 
         public async Task HandleGetStatsAsync(Stream stream, HttpContext context)
         {

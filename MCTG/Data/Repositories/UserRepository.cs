@@ -18,18 +18,31 @@ namespace MCTG
 
         public User GetByUsername(string username)
         {
+            if (string.IsNullOrEmpty(username))
+            {
+                Console.WriteLine("GetByUsername called with null or empty username");
+                return null;
+            }
+
             using var connection = new NpgsqlConnection(_connectionString);
             connection.Open();
-            Console.WriteLine($"Looking up user with username: {username}");
+            Console.WriteLine($"Looking up user with username: '{username}'");  // Added quotes to see any whitespace
     
-            var user = connection.QuerySingleOrDefault<User>(
-                "SELECT * FROM users WHERE username = @username",
-                new { username });
-        
-            Console.WriteLine($"Database lookup result: {(user != null ? "User found" : "User not found")}");
-            return user;
+            try
+            {
+                var user = connection.QuerySingleOrDefault<User>(
+                    "SELECT * FROM users WHERE username = @username",
+                    new { username });
+            
+                Console.WriteLine($"Database lookup result: {(user != null ? $"Found user {user.Username}" : "User not found")}");
+                return user;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in GetByUsername: {ex.Message}");
+                throw;
+            }
         }
-
         public void Add(User user)
         {
             try

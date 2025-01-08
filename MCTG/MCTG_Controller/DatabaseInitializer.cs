@@ -40,6 +40,7 @@ public class DatabaseInitializer
         var createCardsTable = @"
             CREATE TABLE IF NOT EXISTS cards (
                 id SERIAL PRIMARY KEY,
+                original_id VARCHAR(36),
                 name VARCHAR(100) NOT NULL,
                 damage INTEGER NOT NULL,
                 element_type VARCHAR(50) NOT NULL,

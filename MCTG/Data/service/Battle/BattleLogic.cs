@@ -43,8 +43,8 @@ public class BattleLogic
             Card card1 = _deck1.GetTopCard();
             Card card2 = _deck2.GetTopCard();
 
-            roundLog += $"\nUser 1 plays: {card1.Name} ({card1.CardType}, {card1.Element}, Damage: {card1.Damage})";
-            roundLog += $"\nUser 2 plays: {card2.Name} ({card2.CardType}, {card2.Element}, Damage: {card2.Damage})";
+            roundLog += $"\nUser 1 plays: {card1.Name} ({card1.CardType}, {card1.ElementType}, Damage: {card1.Damage})";
+            roundLog += $"\nUser 2 plays: {card2.Name} ({card2.CardType}, {card2.ElementType}, Damage: {card2.Damage})";
 
             double damage1 = CalculateEffectiveDamage(card1, card2);
             double damage2 = CalculateEffectiveDamage(card2, card1);
@@ -106,7 +106,7 @@ public class BattleLogic
         if (attackingCard.Name == "Ork" && defendingCard.Name == "Wizard")
             return 0; // Wizards control Orks
 
-        if (defendingCard.Name == "Knight" && attackingCard.Element == ElementType.Water)
+        if (defendingCard.Name == "Knight" && attackingCard.ElementType == ElementType.Water)
             return double.MaxValue; // Knights drown instantly against WaterSpells
 
         if (defendingCard.Name == "Kraken" && attackingCard.CardType == "Spell")
@@ -120,17 +120,17 @@ public class BattleLogic
         // Element effectiveness (only apply if at least one spell card is involved)
         if (attackingCard.CardType == "Spell" || defendingCard.CardType == "Spell")
         {
-            if (attackingCard.Element == ElementType.Water && defendingCard.Element == ElementType.Fire)
+            if (attackingCard.ElementType == ElementType.Water && defendingCard.ElementType == ElementType.Fire)
                 baseDamage *= 2.0;
-            else if (attackingCard.Element == ElementType.Fire && defendingCard.Element == ElementType.Normal)
+            else if (attackingCard.ElementType == ElementType.Fire && defendingCard.ElementType == ElementType.Normal)
                 baseDamage *= 2.0;
-            else if (attackingCard.Element == ElementType.Normal && defendingCard.Element == ElementType.Water)
+            else if (attackingCard.ElementType == ElementType.Normal && defendingCard.ElementType== ElementType.Water)
                 baseDamage *= 2.0;
-            else if (attackingCard.Element == ElementType.Fire && defendingCard.Element == ElementType.Water)
+            else if (attackingCard.ElementType == ElementType.Fire && defendingCard.ElementType == ElementType.Water)
                 baseDamage *= 0.5;
-            else if (attackingCard.Element == ElementType.Normal && defendingCard.Element == ElementType.Fire)
+            else if (attackingCard.ElementType == ElementType.Normal && defendingCard.ElementType == ElementType.Fire)
                 baseDamage *= 0.5;
-            else if (attackingCard.Element == ElementType.Water && defendingCard.Element == ElementType.Normal)
+            else if (attackingCard.ElementType == ElementType.Water && defendingCard.ElementType == ElementType.Normal)
                 baseDamage *= 0.5;
         }
 

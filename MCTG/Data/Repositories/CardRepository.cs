@@ -14,24 +14,37 @@ namespace MCTG
         public int AddCard(Card card, int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
-            Console.WriteLine($"Adding card: Name={card.Name}, UserId={userId}, CardType={card.CardType}, Damage={card.Damage}");
-    
+            connection.Open();
+
+            // Check if card already exists for the user
+            var existingCard = connection.QuerySingleOrDefault<Card>(
+                "SELECT * FROM cards WHERE original_id = @OriginalId AND user_id = @userId",
+                new { card.OriginalId, userId });
+
+            if (existingCard != null)
+            {
+                // Card already exists, return existing ID
+                return existingCard.Id;
+            }
+
+            // Fix quotes around column names
             var sql = @"
-        INSERT INTO cards (name, damage, element_type, card_type, user_id) 
-        VALUES (@Name, @Damage, @Element, @CardType, @userId) 
-        RETURNING id";
-    
-            try 
+    INSERT INTO cards (original_id, ""name"", damage, element_type, card_type, user_id) 
+    VALUES (@OriginalId, @Name, @Damage, @ElementType, @CardType, @userId) 
+    RETURNING id";
+
+            try
             {
                 var parameters = new
                 {
+                    card.OriginalId, // Ensure OriginalId is included in parameters
                     card.Name,
                     card.Damage,
-                    Element = card.ElementType.ToString(),
+                    ElementType = card.GetElementTypeString(),
                     card.CardType,
                     userId
                 };
-        
+
                 var id = connection.QuerySingle<int>(sql, parameters);
                 Console.WriteLine($"Card added successfully with ID: {id}, CardType: {card.CardType}");
                 return id;
@@ -48,9 +61,12 @@ namespace MCTG
         public IEnumerable<Card> GetUserCards(int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
+            connection.Open();
+
             return connection.Query<Card>(@"
-                SELECT * FROM cards 
-                WHERE user_id = @userId",
+        SELECT *, original_id AS OriginalId 
+        FROM cards
+        WHERE user_id = @userId",
                 new { userId });
         }
 
@@ -97,21 +113,32 @@ namespace MCTG
         public void UpdateDeck(int userId, List<int> cardIds)
         {
             using var connection = new NpgsqlConnection(_connectionString);
-            // First reset all cards to not in deck
-            connection.Execute(@"
+            connection.Open();
+            try
+            {
+                Console.WriteLine($"Updating deck for user {userId} with cards: {string.Join(", ", cardIds)}");
+
+                // First reset all cards to not in deck
+                connection.Execute(@"
                 UPDATE cards 
                 SET in_deck = false 
                 WHERE user_id = @userId",
-                new { userId });
+                    new { userId });
 
-            // Then set selected cards to in deck
-            if (cardIds.Any())
-            {
-                connection.Execute(@"
+                // Then set selected cards to in deck
+                if (cardIds.Any())
+                {
+                    connection.Execute(@"
                     UPDATE cards 
                     SET in_deck = true 
                     WHERE id = ANY(@cardIds) AND user_id = @userId",
-                    new { cardIds, userId });
+                        new { cardIds, userId });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating deck: {ex.Message}");
+                throw;
             }
         }
 

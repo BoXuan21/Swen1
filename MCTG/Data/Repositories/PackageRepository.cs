@@ -131,22 +131,23 @@ public class PackageRepository : IPackageRepository
         try
         {
             connection.Execute(@"
-                UPDATE packages 
-                SET is_sold = true, 
-                    bought_by_user_id = @UserId,
-                    purchase_date = CURRENT_TIMESTAMP
-                WHERE id = @PackageId",
+            UPDATE packages
+            SET is_sold = true,
+                bought_by_user_id = @UserId,
+                purchase_date = CURRENT_TIMESTAMP
+            WHERE id = @PackageId",
                 new { PackageId = packageId, UserId = userId },
                 transaction);
 
+            // Update cards table with existing user ID from package_cards
             connection.Execute(@"
-                UPDATE cards 
-                SET user_id = @UserId
-                WHERE id IN (
-                    SELECT card_id 
-                    FROM package_cards 
-                    WHERE package_id = @PackageId
-                )",
+            UPDATE cards
+            SET user_id = @UserId
+            WHERE id IN (
+                SELECT card_id
+                FROM package_cards
+                WHERE package_id = @PackageId
+            )",
                 new { PackageId = packageId, UserId = userId },
                 transaction);
 
