@@ -154,7 +154,7 @@ namespace MCTG
 
         try
         {
-            switch (method + " " + path)
+            switch (method + " " + path.Split('?')[0]) 
             {
                 case "POST /users":
                     await HandleRegistrationAsync(responseStream, body);
@@ -245,52 +245,93 @@ namespace MCTG
         // To
         public async Task HandleGetProfileAsync(Stream stream, string username, HttpContext context)
         {
-            var requestingUser = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-    
-            if (user == null)
+            try 
             {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+                var requestingUser = context.Items["Username"] as string;  // Changed this line
+                Console.WriteLine($"Request to view profile of {username} by user {requestingUser}");
 
-            // Only allow users to view their own profile
-            if (requestingUser != username)
+                if (string.IsNullOrEmpty(requestingUser))
+                {
+                    Console.WriteLine("No username found in context");
+                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+                    return;
+                }
+
+                var user = _userRepository.GetByUsername(username);
+                if (user == null)
+                {
+                    Console.WriteLine($"User not found: {username}");
+                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                    return;
+                }
+
+                // Only allow users to view their own profile
+                if (requestingUser != username)
+                {
+                    Console.WriteLine($"Access denied: {requestingUser} tried to view {username}'s profile");
+                    await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Access denied");
+                    return;
+                }
+
+                var profile = _userRepository.GetUserProfile(user.Id);
+                Console.WriteLine($"Retrieved profile for user {username}");
+                var response = JsonSerializer.Serialize(profile);
+                await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+            }
+            catch (Exception ex)
             {
-                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Access denied");
-                return;
+                Console.WriteLine($"Error getting profile: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+                    "An error occurred while retrieving the profile");
             }
-
-            var profile = _userRepository.GetUserProfile(user.Id);
-            var response = JsonSerializer.Serialize(profile);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
         }
 
-// And update the update profile method similarly
-        public async Task HandleUpdateProfileAsync(Stream stream, string username, string body, HttpContext context)
+public async Task HandleUpdateProfileAsync(Stream stream, string username, string body, HttpContext context)
+{
+    try
+    {
+        var requestingUser = context.Items["Username"] as string;  // Changed from User.Identity.Name
+        Console.WriteLine($"Request to update profile for {username} by user {requestingUser}");
+
+        if (string.IsNullOrEmpty(requestingUser))
         {
-            var requestingUser = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-    
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
-
-            // Only allow users to update their own profile
-            if (requestingUser != username)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Access denied");
-                return;
-            }
-
-            var profile = JsonSerializer.Deserialize<UserProfile>(body);
-            profile.UserId = user.Id;
-    
-            _userRepository.UpdateProfile(profile);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Profile updated successfully");
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
         }
+
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
+        {
+            Console.WriteLine($"User not found: {username}");
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
+        }
+
+        // Only allow users to update their own profile
+        if (requestingUser != username)
+        {
+            Console.WriteLine($"Access denied: {requestingUser} tried to update {username}'s profile");
+            await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Access denied");
+            return;
+        }
+
+        var profile = JsonSerializer.Deserialize<UserProfile>(body);
+        profile.UserId = user.Id;
+    
+        _userRepository.UpdateProfile(profile);
+        Console.WriteLine($"Profile updated successfully for user {username}");
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Profile updated successfully");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error updating profile: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while updating the profile");
+    }
+}
 
         public async Task HandleUpdateProfileAsync(Stream stream, string body, HttpContext context)
         {
@@ -619,6 +660,9 @@ public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
         var username = context.Items["Username"] as string;
         Console.WriteLine($"Getting deck for user: {username}");
 
+        // Print the full request URL for debugging
+        Console.WriteLine($"Request path and query: {context.Request.Path}{context.Request.QueryString}");
+
         if (string.IsNullOrEmpty(username))
         {
             Console.WriteLine("No username found in context");
@@ -634,10 +678,33 @@ public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
             return;
         }
 
-        var deck = _cardRepository.GetUserDeck(user.Id);
-        Console.WriteLine($"Found {deck.Count()} cards in deck for user {username}");
+        var deck = _cardRepository.GetUserDeck(user.Id).ToList();
+        Console.WriteLine($"Found {deck.Count} cards in deck for user {username}");
 
-        var response = JsonSerializer.Serialize(deck);
+        // Parse query string manually from the raw request
+        var requestLines = context.Request.Path.Value?.Split('?');
+        var isPlainFormat = requestLines?.Length > 1 && requestLines[1].Contains("format=plain");
+        
+        Console.WriteLine($"Format is plain: {isPlainFormat}");
+
+        string response;
+        if (isPlainFormat)
+        {
+            var plainResponse = new StringBuilder();
+            plainResponse.AppendLine($"Deck of user {username}:");
+            foreach (var card in deck)
+            {
+                plainResponse.AppendLine($"- {card.Name}: {card.Damage} damage");
+            }
+            response = plainResponse.ToString();
+            Console.WriteLine("Sending plain format response");
+        }
+        else
+        {
+            response = JsonSerializer.Serialize(deck);
+            Console.WriteLine("Sending JSON format response");
+        }
+
         await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
     }
     catch (Exception ex)
@@ -648,6 +715,7 @@ public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
             "An error occurred while retrieving the deck");
     }
 }
+
 public async Task HandleConfigureDeckAsync(Stream stream, string body, HttpContext context)
 {
     try
@@ -695,7 +763,7 @@ public async Task HandleConfigureDeckAsync(Stream stream, string body, HttpConte
 
         public async Task HandleGetStatsAsync(Stream stream, HttpContext context)
         {
-            var username = context.User.Identity.Name;
+            var username = context.Items["Username"] as string;
             var user = _userRepository.GetByUsername(username);
             
             if (user == null)

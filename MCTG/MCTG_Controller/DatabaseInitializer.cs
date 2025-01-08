@@ -74,6 +74,15 @@ public class DatabaseInitializer
                 draws INTEGER DEFAULT 0,
                 elo INTEGER DEFAULT 100
             )";
+        
+        // Create user_profiles table
+        var createUserProfilesTable = @"
+    CREATE TABLE IF NOT EXISTS user_profiles (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id),
+        name VARCHAR(255),
+        bio TEXT,
+        image VARCHAR(255)
+    )";
 
         // Create trades table
         var createTradesTable = @"
@@ -112,6 +121,7 @@ public class DatabaseInitializer
         connection.Execute(createBattleHistoryTable);
         connection.Execute(createUserStatsTable);
         connection.Execute(createTradesTable);
+        connection.Execute(createUserProfilesTable);
 
         // Verify the foreign key constraints
         var constraints = connection.Query(@"
