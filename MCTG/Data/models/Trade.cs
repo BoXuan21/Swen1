@@ -8,4 +8,3 @@ public class Trade
     public string RequiredType { get; set; }  // "Monster" or "Spell"
     public int MinimumDamage { get; set; }
 }
-

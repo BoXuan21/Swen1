@@ -3,8 +3,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Npgsql;
-
 namespace MCTG
 {
     public class TcpServer
@@ -15,7 +13,6 @@ namespace MCTG
         private readonly ITradeRepository _tradeRepository;
         private readonly IBattleRepository _battleRepository;
         private readonly IJwtService _jwtService;
-        private readonly string _connectionString;
         private readonly JwtMiddleware _jwtMiddleware;
         private readonly IPackageRepository _packageRepository;
         private readonly IUserStatsRepository _userStatsRepository;
@@ -32,7 +29,7 @@ namespace MCTG
             _tradeRepository = tradeRepository;
             _battleRepository = battleRepository;
             _jwtService = jwtService;
-            _userStatsRepository = userStatsRepository;
+            _userStatsRepository = userStatsRepository; 
             _jwtMiddleware = new JwtMiddleware(null, jwtService);
         }
 
@@ -192,6 +189,9 @@ namespace MCTG
                 case "POST /tradings":
                     await HandleCreateTradeAsync(responseStream, body, context);
                     break;
+                case var tradingPath when method == "POST" && path.StartsWith("/tradings/"):
+                    await HandleExecuteTradeAsync(responseStream, path, body, context);
+                    break;
                 case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
                     await HandleDeleteTradeAsync(responseStream, path, context);
                     break;
@@ -333,111 +333,194 @@ public async Task HandleUpdateProfileAsync(Stream stream, string username, strin
     }
 }
 
-        public async Task HandleUpdateProfileAsync(Stream stream, string body, HttpContext context)
-        {
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-    
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+        public async Task HandleExecuteTradeAsync(Stream stream, string path, string body, HttpContext context)
+{
+    try
+    {
+        var username = context.Items["Username"] as string;
+        Console.WriteLine($"Execute trade request from user: {username}");
 
-            var profile = JsonSerializer.Deserialize<UserProfile>(body);
-            profile.UserId = user.Id;
-    
-            _userRepository.UpdateProfile(profile);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Profile updated successfully");
+        if (string.IsNullOrEmpty(username))
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
         }
+
+        // Parse trading ID from path
+        var pathParts = path.Split('/');
+        if (pathParts.Length < 3 || !int.TryParse(pathParts[2], out int tradeId))
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
+            return;
+        }
+
+        // Get the card ID from the request body
+        var offeredCardId = JsonSerializer.Deserialize<int>(body);
+
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
+        }
+
+        var trade = _tradeRepository.GetTradeById(tradeId);
+        if (trade == null)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
+            return;
+        }
+
+        // Check if user is trying to trade with themselves
+        if (trade.UserId == user.Id)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot trade with yourself");
+            return;
+        }
+
+        try
+        {
+            _tradeRepository.ExecuteTrade(tradeId, offeredCardId, user.Id);
+            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade executed successfully");
+        }
+        catch (Exception ex)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", ex.Message);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error executing trade: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while executing the trade");
+    }
+}
         
         
         
 public async Task HandleBattleAsync(Stream stream, HttpContext context, string body)
 {
-    var username = context.User.Identity.Name;
-    var user1 = _userRepository.GetByUsername(username);
-    var opponent = JsonSerializer.Deserialize<BattleRequest>(body);
-    var user2 = _userRepository.GetByUsername(opponent.OpponentUsername);
-
-    if (user1 == null || user2 == null)
+    try 
     {
-        await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-        return;
-    }
+        var username = context.Items["Username"] as string;  // Changed from User.Identity.Name
+        Console.WriteLine($"Battle request from user: {username}");
 
-    // Get user stats
-    var stats1 = _userStatsRepository.GetUserStats(user1.Id);
-    var stats2 = _userStatsRepository.GetUserStats(user2.Id);
-    
-    if (stats1 == null || stats2 == null)
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
+        }
+
+        var user1 = _userRepository.GetByUsername(username);
+        var opponent = JsonSerializer.Deserialize<BattleRequest>(body);
+        var user2 = _userRepository.GetByUsername(opponent.OpponentUsername);
+
+        if (user1 == null || user2 == null)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
+        }
+
+        // Get user stats
+        var stats1 = _userStatsRepository.GetUserStats(user1.Id);
+        var stats2 = _userStatsRepository.GetUserStats(user2.Id);
+        
+        if (stats1 == null || stats2 == null)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "User stats not found");
+            return;
+        }
+
+        var cardsInDeck1 = _cardRepository.GetUserDeck(user1.Id).ToList();
+        var cardsInDeck2 = _cardRepository.GetUserDeck(user2.Id).ToList();
+        
+        if (cardsInDeck1.Count < 4 || cardsInDeck2.Count < 4)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Both users must have at least 4 cards in their deck");
+            return;
+        }
+
+        var deck1 = new Deck(new Stack { Cards = cardsInDeck1 });
+        var deck2 = new Deck(new Stack { Cards = cardsInDeck2 });
+
+        var battleLogic = new BattleLogic(user1, user2, deck1, deck2);
+        var battleLog = battleLogic.ExecuteBattle();
+
+        // Update stats based on battle result
+        stats1.GamesPlayed++;
+        stats2.GamesPlayed++;
+
+        if (battleLog.Winner == "User 1")
+        {
+            stats1.Wins++;
+            stats2.Losses++;
+            stats1.Elo += 3;
+            stats2.Elo -= 5;
+        }
+        else if (battleLog.Winner == "User 2")
+        {
+            stats2.Wins++;
+            stats1.Losses++;
+            stats2.Elo += 3;
+            stats1.Elo -= 5;
+        }
+        else
+        {
+            stats1.Draws++;
+            stats2.Draws++;
+        }
+
+        _userStatsRepository.UpdateStats(stats1);
+        _userStatsRepository.UpdateStats(stats2);
+
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
+    }
+    catch (Exception ex)
     {
-        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "User stats not found");
-        return;
+        Console.WriteLine($"Error in HandleBattleAsync: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while processing the battle");
     }
-
-    var cardsInDeck1 = _cardRepository.GetUserDeck(user1.Id).ToList();
-    var cardsInDeck2 = _cardRepository.GetUserDeck(user2.Id).ToList();
-    
-    if (cardsInDeck1.Count < 4 || cardsInDeck2.Count < 4)
-    {
-        await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Both users must have at least 4 cards in their deck");
-        return;
-    }
-
-    var deck1 = new Deck(new Stack { Cards = cardsInDeck1 });
-    var deck2 = new Deck(new Stack { Cards = cardsInDeck2 });
-
-    var battleLogic = new BattleLogic(user1, user2, deck1, deck2);
-    var battleLog = battleLogic.ExecuteBattle();
-
-    // Update stats based on battle result
-    stats1.GamesPlayed++;
-    stats2.GamesPlayed++;
-
-    if (battleLog.Winner == "User 1")
-    {
-        stats1.Wins++;
-        stats2.Losses++;
-        stats1.Elo += 3;
-        stats2.Elo -= 5;
-    }
-    else if (battleLog.Winner == "User 2")
-    {
-        stats2.Wins++;
-        stats1.Losses++;
-        stats2.Elo += 3;
-        stats1.Elo -= 5;
-    }
-    else
-    {
-        stats1.Draws++;
-        stats2.Draws++;
-    }
-
-    // Update stats once
-    _userStatsRepository.UpdateStats(stats1);
-    _userStatsRepository.UpdateStats(stats2);
-
-    await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(battleLog));
 }
         
         
-        public async Task HandleGetBattleHistoryAsync(Stream stream, HttpContext context)
-        {
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-    
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+public async Task HandleGetBattleHistoryAsync(Stream stream, HttpContext context)
+{
+    try 
+    {
+        var username = context.Items["Username"] as string;
+        Console.WriteLine($"Getting battle history for user: {username}");
 
-            var battles = _battleRepository.GetUserBattleHistory(user.Id);
-            var response = JsonSerializer.Serialize(battles);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
         }
+
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
+        {
+            Console.WriteLine($"User not found: {username}");
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
+        }
+
+        var battles = _battleRepository.GetUserBattleHistory(user.Id);
+        var response = JsonSerializer.Serialize(battles);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error getting battle history: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while retrieving battle history");
+    }
+}
         
         public async Task HandleRegistrationAsync(Stream stream, string body)
         {
@@ -761,112 +844,182 @@ public async Task HandleConfigureDeckAsync(Stream stream, string body, HttpConte
     }
 }
 
-        public async Task HandleGetStatsAsync(Stream stream, HttpContext context)
-        {
-            var username = context.Items["Username"] as string;
-            var user = _userRepository.GetByUsername(username);
-            
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
+       
+public async Task HandleGetStatsAsync(Stream stream, HttpContext context)
+{
+    try
+    {
+        var username = context.Items["Username"] as string;
+        Console.WriteLine($"Getting stats for user: {username}");
 
-            var stats = new { user.Elo, user.Coins };
-            var response = JsonSerializer.Serialize(stats);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
         }
 
-        public async Task HandleGetScoreboardAsync(Stream stream)
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
         {
-            var users = _userRepository.GetAllUsers();
-            var scoreboard = users.OrderByDescending(u => u.Elo)
-                                .Select(u => new { u.Username, u.Elo });
-            var response = JsonSerializer.Serialize(scoreboard);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+            Console.WriteLine($"User not found: {username}");
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
         }
 
-        public async Task HandleGetTradingsAsync(Stream stream)
-        {
-            var trades = _tradeRepository.GetAllTrades();
-            var response = JsonSerializer.Serialize(trades);
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
-        }
+        var stats = new { user.Elo, user.Coins };
+        var response = JsonSerializer.Serialize(stats);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error getting stats: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while retrieving stats");
+    }
+}
+
+public async Task HandleGetScoreboardAsync(Stream stream)
+{
+    try
+    {
+        var users = _userRepository.GetAllUsers();
+        var scoreboard = users.OrderByDescending(u => u.Elo)
+            .Select(u => new { u.Username, u.Elo });
+        var response = JsonSerializer.Serialize(scoreboard);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error getting scoreboard: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while retrieving the scoreboard");
+    }
+}
+public async Task HandleGetTradingsAsync(Stream stream)
+{
+    try
+    {
+        var trades = _tradeRepository.GetAllTrades();
+        var response = JsonSerializer.Serialize(trades);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error getting trades: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+            "An error occurred while retrieving trades");
+    }
+}
 
         public async Task HandleCreateTradeAsync(Stream stream, string body, HttpContext context)
         {
-            var username = context.User.Identity.Name;
-            var user = _userRepository.GetByUsername(username);
-            
-            if (user == null)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-                return;
-            }
-
-            var trade = JsonSerializer.Deserialize<Trade>(body);
-            trade.UserId = user.Id;
-            
             try
             {
-                _tradeRepository.CreateTrade(trade);
-                await SendResponseAsync(stream, "HTTP/1.1 201 Created", "Trade created successfully");
-            }
-            catch (Exception ex)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", ex.Message);
-            }
-        }
+                var username = context.Items["Username"] as string;
+                Console.WriteLine($"Creating trade for user: {username}");
 
-        public async Task HandleDeleteTradeAsync(Stream stream, string path, HttpContext context)
-        {
-            try 
-            {
-                // Parse trading ID from path (e.g., /tradings/123)
-                var pathParts = path.Split('/');
-                if (pathParts.Length < 3)
+                if (string.IsNullOrEmpty(username))
                 {
-                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
+                    Console.WriteLine("No username found in context");
+                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
                     return;
                 }
 
-                if (!int.TryParse(pathParts[2], out int tradeId))
-                {
-                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
-                    return;
-                }
-
-                var username = context.User.Identity.Name;
                 var user = _userRepository.GetByUsername(username);
-            
                 if (user == null)
                 {
+                    Console.WriteLine($"User not found: {username}");
                     await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
                     return;
                 }
 
-                var trade = _tradeRepository.GetTradeById(tradeId);
-                if (trade == null)
+                var trade = JsonSerializer.Deserialize<Trade>(body);
+                trade.UserId = user.Id;
+        
+                try
                 {
-                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
-                    return;
+                    _tradeRepository.CreateTrade(trade);
+                    Console.WriteLine($"Trade created successfully for user {username}");
+                    await SendResponseAsync(stream, "HTTP/1.1 201 Created", "Trade created successfully");
                 }
-
-                if (trade.UserId != user.Id)
+                catch (Exception ex)
                 {
-                    await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot delete another user's trade");
-                    return;
+                    Console.WriteLine($"Error creating trade: {ex.Message}");
+                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", ex.Message);
                 }
-
-                _tradeRepository.DeleteTrade(tradeId);
-                await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade deleted successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in HandleDeleteTradeAsync: {ex.Message}");
-                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "Failed to delete trade");
+                Console.WriteLine($"Error in HandleCreateTradeAsync: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
+                    "An error occurred while creating the trade");
             }
         }
+        
+
+      public async Task HandleDeleteTradeAsync(Stream stream, string path, HttpContext context)
+{
+    try 
+    {
+        var username = context.Items["Username"] as string;  // Changed from User.Identity.Name
+        Console.WriteLine($"Delete trade request from user: {username}");
+
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine("No username found in context");
+            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+            return;
+        }
+
+        // Parse trading ID from path (e.g., /tradings/123)
+        var pathParts = path.Split('/');
+        if (pathParts.Length < 3)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
+            return;
+        }
+
+        if (!int.TryParse(pathParts[2], out int tradeId))
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
+            return;
+        }
+
+        var user = _userRepository.GetByUsername(username);
+        if (user == null)
+        {
+            Console.WriteLine($"User not found: {username}");
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+            return;
+        }
+
+        var trade = _tradeRepository.GetTradeById(tradeId);
+        if (trade == null)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
+            return;
+        }
+
+        if (trade.UserId != user.Id)
+        {
+            await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot delete another user's trade");
+            return;
+        }
+
+        _tradeRepository.DeleteTrade(tradeId);
+        await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade deleted successfully");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in HandleDeleteTradeAsync: {ex.Message}");
+        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "Failed to delete trade");
+    }
+}
 
         public async Task SendResponseAsync(Stream stream, string status, string content)
         {
