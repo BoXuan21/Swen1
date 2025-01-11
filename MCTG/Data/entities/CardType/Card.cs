@@ -7,7 +7,6 @@
         public int Damage { get; set; }
         public ElementType ElementType { get; set; } 
         
-        public string OriginalId { get; set; }
         public string CardType { get; set; }
         public int? UserId { get; set; }
         
@@ -17,7 +16,6 @@
             Damage = damage;
             ElementType = element;
             CardType = "Monster";
-            OriginalId = originalId;
         }
 
         // Default constructor for database mapping

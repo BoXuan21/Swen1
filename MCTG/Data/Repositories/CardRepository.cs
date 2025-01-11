@@ -19,7 +19,7 @@ namespace MCTG
             // Check if card already exists for the user
             var existingCard = connection.QuerySingleOrDefault<Card>(
                 "SELECT * FROM cards WHERE original_id = @OriginalId AND user_id = @userId",
-                new { card.OriginalId, userId });
+                new {  userId });
 
             if (existingCard != null)
             {
@@ -37,7 +37,6 @@ namespace MCTG
             {
                 var parameters = new
                 {
-                    card.OriginalId, // Ensure OriginalId is included in parameters
                     card.Name,
                     card.Damage,
                     ElementType = card.GetElementTypeString(),
@@ -69,18 +68,7 @@ namespace MCTG
         WHERE user_id = @userId",
                 new { userId });
         }
-
-        public void AddPackage(int userId)
-        {
-            // Generate 5 random cards
-            var random = new Random();
-            for (int i = 0; i < 5; i++)
-            {
-                var card = GenerateRandomCard();
-                AddCard(card, userId);
-            }
-        }
-
+        
         public Card GetCard(int cardId)
         {
             using var connection = new NpgsqlConnection(_connectionString);

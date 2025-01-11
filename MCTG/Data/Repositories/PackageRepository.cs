@@ -161,55 +161,6 @@ public class PackageRepository : IPackageRepository
         }
     }
 
-    public bool PackageExists(int packageId)
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-        return connection.ExecuteScalar<bool>(
-            "SELECT EXISTS(SELECT 1 FROM packages WHERE id = @PackageId)",
-            new { PackageId = packageId });
-    }
-
-    public bool IsPackageAvailable(int packageId)
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-        return connection.ExecuteScalar<bool>(
-            "SELECT EXISTS(SELECT 1 FROM packages WHERE id = @PackageId AND is_sold = false)",
-            new { PackageId = packageId });
-    }
-
-    public int GetPackageCount()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM packages WHERE is_sold = false");
-    }
-    
-    public IEnumerable<Package> GetUserPurchaseHistory(int userId)
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
-    
-        try
-        {
-            return connection.Query<Package>(@"
-            SELECT p.*, 
-                   ARRAY_AGG(c.*) as Cards
-            FROM packages p
-            LEFT JOIN package_cards pc ON pc.package_id = p.id
-            LEFT JOIN cards c ON c.id = pc.card_id
-            WHERE p.bought_by_user_id = @UserId
-            GROUP BY p.id, p.is_sold, p.bought_by_user_id, p.purchase_date
-            ORDER BY p.purchase_date DESC",
-                new { UserId = userId });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error getting user purchase history: {ex.Message}");
-            throw;
-        }
-    }
-    
+ 
     
 }

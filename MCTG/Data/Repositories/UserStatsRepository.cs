@@ -65,14 +65,5 @@ public class UserStatsRepository : IUserStatsRepository
             VALUES (@UserId, 0, 0, 0, 0, 100)",
             new { UserId = userId });
     }
-
-    public IEnumerable<UserStats> GetLeaderboard()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        return connection.Query<UserStats>(@"
-            SELECT us.*, u.username 
-            FROM user_stats us
-            JOIN users u ON u.id = us.user_id
-            ORDER BY us.elo DESC");
-    }
+    
 }

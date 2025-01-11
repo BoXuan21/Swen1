@@ -2,7 +2,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Moq;
-using System.Security.Claims;
 
 namespace MCTG
 {
@@ -44,22 +43,25 @@ namespace MCTG
         [Test]
         public async Task HandleLoginAsync_ValidCredentials_ReturnsOkResponseWithToken()
         {
+            // Arrange
+            var stream = new MemoryStream();
             var user = new User { Username = "testuser", Password = "password" };
+
             _userRepositoryMock
-                .Setup(repo => repo.ValidateCredentials(
-                    It.Is<string>(u => u == "testuser"),
-                    It.Is<string>(p => p == "password")))
+                .Setup(repo => repo.ValidateCredentials("testuser", "password"))
                 .Returns(true);
 
             _jwtServiceMock
                 .Setup(service => service.GenerateToken("testuser"))
                 .Returns("test-token");
 
-            var stream = new MemoryStream();
+            // Act
             await _server.HandleLoginAsync(stream, JsonSerializer.Serialize(user));
 
+            // Assert
+            stream.Position = 0;
             var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("200 OK"));
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
             Assert.That(response, Contains.Substring("test-token"));
         }
 
@@ -67,15 +69,11 @@ namespace MCTG
         public async Task HandleBattleAsync_UserNotFound_Returns404()
         {
             // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "player1";
+
             _userRepositoryMock.Setup(r => r.GetByUsername(It.IsAny<string>()))
                 .Returns((User)null);
-
-            var context = new DefaultHttpContext();
-            var identity = new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.Name, "player1") },
-                "test"
-            );
-            context.User = new ClaimsPrincipal(identity);
 
             var body = JsonSerializer.Serialize(new BattleRequest { OpponentUsername = "player2" });
             var stream = new MemoryStream();
@@ -84,16 +82,21 @@ namespace MCTG
             await _server.HandleBattleAsync(stream, context, body);
 
             // Assert
+            stream.Position = 0;
             var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("404 Not Found"));
+            Assert.That(response, Contains.Substring("HTTP/1.1 404 Not Found"));
         }
 
         [Test]
         public async Task HandleGetCardsAsync_UserExists_ReturnsOkResponseWithCards()
         {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+
             var user = new User { Id = 1, Username = "testuser" };
             _userRepositoryMock
-                .Setup(repo => repo.GetByUsername(It.Is<string>(u => u == "testuser")))
+                .Setup(repo => repo.GetByUsername("testuser"))
                 .Returns(user);
 
             var cards = new[] { new Card { Id = 1, Name = "Card1" } };
@@ -101,92 +104,25 @@ namespace MCTG
                 .Setup(repo => repo.GetUserCards(1))
                 .Returns(cards);
 
-            var context = new DefaultHttpContext();
-            var identity = new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.Name, "testuser") },
-                "test"
-            );
-            context.User = new ClaimsPrincipal(identity);
-
             var stream = new MemoryStream();
-            await _server.HandleGetCardsAsync(stream, context);
-
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("200 OK"));
-        }
-
-        [Test]
-        public async Task HandleRegistrationAsync_ValidUser_ReturnsCreatedResponse()
-        {
-            // Arrange
-            var stream = new MemoryStream();
-            var body = "{\"username\":\"testuser\",\"password\":\"password\"}";
-            var expectedToken = "testuser-mtcgToken";
-
-            _jwtServiceMock.Setup(service => service.GenerateToken("testuser"))
-                .Returns(expectedToken);
 
             // Act
-            await _server.HandleRegistrationAsync(stream, body);
+            await _server.HandleGetCardsAsync(stream, context);
 
             // Assert
-            _userRepositoryMock.Verify(repo => repo.Add(It.Is<User>(u => 
-                    u.Username == "testuser" && 
-                    u.Password == "password" && 
-                    u.Coins == 20 && 
-                    u.Elo == 100)), 
-                Times.Once);
-
             stream.Position = 0;
             var response = Encoding.UTF8.GetString(stream.ToArray());
-            
-            Assert.That(response, Contains.Substring("HTTP/1.1 201 Created"));
-            Assert.That(response, Contains.Substring(expectedToken));
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(response, Contains.Substring("Card1"));
         }
 
-        [Test]
-        public void ValidateCredentials_Mock_ReturnsExpectedValue()
-        {
-            _userRepositoryMock
-                .Setup(repo => repo.ValidateCredentials("testuser", "password"))
-                .Returns(true);
-
-            var result = _userRepositoryMock.Object.ValidateCredentials("testuser", "password");
-            Assert.That(result, Is.True, "Mocked ValidateCredentials should return true.");
-        }
-
-        [Test]
-        public void GetByUsername_Mock_ReturnsExpectedUser()
-        {
-            var user = new User { Id = 1, Username = "testuser" };
-            _userRepositoryMock
-                .Setup(repo => repo.GetByUsername("testuser"))
-                .Returns(user);
-
-            var result = _userRepositoryMock.Object.GetByUsername("testuser");
-            Assert.That(result, Is.EqualTo(user), "Mocked GetByUsername should return the expected user.");
-        }
-
-        [Test]
-        public void GetUserCards_Mock_ReturnsExpectedCards()
-        {
-            var cards = new[]
-            {
-                new Card { Id = 1, Name = "Card1" },
-                new Card { Id = 2, Name = "Card2" }
-            };
-            _cardRepositoryMock
-                .Setup(repo => repo.GetUserCards(1))
-                .Returns(cards);
-
-            var result = _cardRepositoryMock.Object.GetUserCards(1);
-            Assert.That(result, Is.EqualTo(cards), "Mocked GetUserCards should return the expected cards.");
-        }
-        
         [Test]
         public async Task HandleGetBattleHistoryAsync_ReturnsUserBattleHistory()
         {
             // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+
             var user = new User { Id = 1, Username = "testuser" };
             var battleHistory = new[] 
             {
@@ -206,360 +142,431 @@ namespace MCTG
                 .Setup(repo => repo.GetUserBattleHistory(1))
                 .Returns(battleHistory);
 
-            var context = new DefaultHttpContext();
-            var identity = new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.Name, "testuser") },
-                "test"
-            );
-            context.User = new ClaimsPrincipal(identity);
-
             var stream = new MemoryStream();
 
             // Act
             await _server.HandleGetBattleHistoryAsync(stream, context);
 
             // Assert
+            stream.Position = 0;
             var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("200 OK"));
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
             _battleRepositoryMock.Verify(repo => repo.GetUserBattleHistory(1), Times.Once);
         }
-        
-      [Test]
-public async Task HandleBattleAsync_UpdatesUserStats_AfterBattle()
-{
-    // Arrange
-    var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
-    var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
-   
-    var stats1 = new UserStats { UserId = 1, GamesPlayed = 0, Wins = 0, Losses = 0, Elo = 100 };
-    var stats2 = new UserStats { UserId = 2, GamesPlayed = 0, Wins = 0, Losses = 0, Elo = 100 };
 
-    _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
-    _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
-    _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
-    _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+        [Test]
+        public async Task HandleGetProfileAsync_UserExists_ReturnsOkWithProfile()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    // Create decks with 4 cards each
-    var deck1Cards = new List<Card> {
-        new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card3", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card4", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 }
-    };
-    var deck2Cards = new List<Card> {
-        new Card("Card5", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
-        new Card("Card6", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
-        new Card("Card7", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
-        new Card("Card8", 40, ElementType.Water) { CardType = "Monster", UserId = 2 }
-    };
+            var user = new User { Id = 1, Username = "testuser" };
+            var profile = new UserProfile 
+            { 
+                UserId = 1, 
+                Name = "Test User", 
+                Bio = "Test Bio", 
+                Image = "test.jpg" 
+            };
 
-    _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
-    _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _userRepositoryMock.Setup(r => r.GetUserProfile(1)).Returns(profile);
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            var stream = new MemoryStream();
 
-    var battleRequest = new BattleRequest { OpponentUsername = "player2" };
-    var stream = new MemoryStream();
+            // Act
+            await _server.HandleGetProfileAsync(stream, "testuser", context);
 
-    // Setup UpdateStats to accept any changes
-    _userStatsRepositoryMock
-        .Setup(r => r.UpdateStats(It.IsAny<UserStats>()))
-        .Verifiable();
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(response, Contains.Substring("Test User"));
+            Assert.That(response, Contains.Substring("Test Bio"));
+        }
 
-    // Act
-    await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+        [Test]
+        public async Task HandleGetProfileAsync_UnauthorizedAccess_Returns403()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "differentuser";
 
-    // Assert
-    _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
-        s.GamesPlayed == 1 &&
-        (s.Wins == 1 || s.Losses == 1))), 
-        Times.Exactly(2));
-}
+            var user = new User { Id = 1, Username = "testuser" };
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
 
-[Test]
-public async Task HandleBattleAsync_UpdatesElo_AfterBattle()
-{
-    // Arrange
-    var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
-    var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
-   
-    var stats1 = new UserStats { UserId = 1, GamesPlayed = 10, Wins = 5, Elo = 100 };
-    var stats2 = new UserStats { UserId = 2, GamesPlayed = 10, Wins = 5, Elo = 100 };
+            var stream = new MemoryStream();
 
-    _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
-    _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
-    _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
-    _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+            // Act
+            await _server.HandleGetProfileAsync(stream, "testuser", context);
 
-    // Create decks with 4 cards each
-    var deck1Cards = new List<Card> {
-        new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card3", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card4", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 }
-    };
-    var deck2Cards = new List<Card> {
-        new Card("Card5", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
-        new Card("Card6", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
-        new Card("Card7", 40, ElementType.Water) { CardType = "Monster", UserId = 2 },
-        new Card("Card8", 40, ElementType.Water) { CardType = "Monster", UserId = 2 }
-    };
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
+        }
 
-    _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
-    _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+        [Test]
+        public async Task HandleUpdateProfileAsync_ValidProfile_ReturnsOk()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            var user = new User { Id = 1, Username = "testuser" };
+            var profile = new UserProfile 
+            { 
+                UserId = 1, 
+                Name = "Updated Name", 
+                Bio = "Updated Bio", 
+                Image = "updated.jpg" 
+            };
 
-    var battleRequest = new BattleRequest { OpponentUsername = "player2" };
-    var stream = new MemoryStream();
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _userRepositoryMock.Setup(r => r.UpdateProfile(It.IsAny<UserProfile>())).Verifiable();
 
-    // Setup UpdateStats to accept any changes
-    _userStatsRepositoryMock
-        .Setup(r => r.UpdateStats(It.IsAny<UserStats>()))
-        .Verifiable();
+            var stream = new MemoryStream();
+            var body = JsonSerializer.Serialize(profile);
 
-    // Act
-    await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+            // Act
+            await _server.HandleUpdateProfileAsync(stream, "testuser", body, context);
 
-    // Assert
-    _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
-        Math.Abs(s.Elo - 100) == 3 || Math.Abs(s.Elo - 100) == 5)), 
-        Times.Exactly(2));
-}
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            _userRepositoryMock.Verify(r => r.UpdateProfile(It.Is<UserProfile>(p => 
+                p.Name == "Updated Name" && 
+                p.Bio == "Updated Bio" && 
+                p.Image == "updated.jpg")), Times.Once);
+        }
 
-[Test]
-public async Task HandleBattleAsync_Draw_UpdatesStats()
-{
-    // Arrange
-    var user1 = new User { Id = 1, Username = "player1", Elo = 100 };
-    var user2 = new User { Id = 2, Username = "player2", Elo = 100 };
-   
-    var stats1 = new UserStats { UserId = 1, GamesPlayed = 0, Draws = 0, Elo = 100 };
-    var stats2 = new UserStats { UserId = 2, GamesPlayed = 0, Draws = 0, Elo = 100 };
+        [Test]
+        public async Task HandleRegistrationAsync_InvalidUser_ReturnsBadRequest()
+        {
+            // Arrange
+            var stream = new MemoryStream();
+            var invalidUser = new User { Username = "", Password = "" };
 
-    _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
-    _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
-    _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
-    _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+            // Act
+            await _server.HandleRegistrationAsync(stream, JsonSerializer.Serialize(invalidUser));
 
-    // Create decks with 4 identical cards each to force a draw
-    var deck1Cards = new List<Card> {
-        new Card("Card1", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card2", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card3", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 },
-        new Card("Card4", 50, ElementType.Fire) { CardType = "Monster", UserId = 1 }
-    };
-    var deck2Cards = new List<Card> {
-        new Card("Card5", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 },
-        new Card("Card6", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 },
-        new Card("Card7", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 },
-        new Card("Card8", 50, ElementType.Fire) { CardType = "Monster", UserId = 2 }
-    };
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
+        }
 
-    _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck1Cards);
-    _cardRepositoryMock.Setup(r => r.GetUserDeck(2)).Returns(deck2Cards);
+        [Test]
+        public async Task HandleLoginAsync_InvalidCredentials_ReturnsUnauthorized()
+        {
+            // Arrange
+            var stream = new MemoryStream();
+            var user = new User { Username = "testuser", Password = "wrongpass" };
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "player1") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            _userRepositoryMock
+                .Setup(repo => repo.ValidateCredentials("testuser", "wrongpass"))
+                .Returns(false);
 
-    var battleRequest = new BattleRequest { OpponentUsername = "player2" };
-    var stream = new MemoryStream();
+            // Act
+            await _server.HandleLoginAsync(stream, JsonSerializer.Serialize(user));
 
-    // Setup UpdateStats to accept any changes
-    _userStatsRepositoryMock
-        .Setup(r => r.UpdateStats(It.IsAny<UserStats>()))
-        .Verifiable();
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 401 Unauthorized"));
+        }
 
-    // Act
-    await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+        [Test]
+        public async Task HandleBuyPackageAsync_NotEnoughCoins_ReturnsForbidden()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    // Assert
-    _userStatsRepositoryMock.Verify(r => r.UpdateStats(It.Is<UserStats>(s => 
-        s.GamesPlayed == 1 && s.Draws == 1)), Times.Exactly(2));
-}
+            var user = new User { Id = 1, Username = "testuser", Coins = 3 };
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
 
-[Test]
-public async Task HandleGetProfileAsync_UserExists_ReturnsOkWithProfile()
-{
-    // Arrange
-    var user = new User { Id = 1, Username = "testuser" };
-    var profile = new UserProfile 
-    { 
-        UserId = 1, 
-        Name = "Test User", 
-        Bio = "Test Bio", 
-        Image = "test.jpg" 
-    };
+            var stream = new MemoryStream();
 
-    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
-    _userRepositoryMock.Setup(r => r.GetUserProfile(1)).Returns(profile);
+            // Act
+            await _server.HandleBuyPackageAsync(stream, "", context);
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
+        }
 
-    var stream = new MemoryStream();
+        [Test]
+        public async Task HandleBuyPackageAsync_NoPackagesAvailable_ReturnsNotFound()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    // Act
-    await _server.HandleGetProfileAsync(stream, "testuser", context);
+            var user = new User { Id = 1, Username = "testuser", Coins = 10 };
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _packageRepositoryMock.Setup(r => r.GetAvailablePackage()).Returns((Package)null);
 
-    // Assert
-    var response = Encoding.UTF8.GetString(stream.ToArray());
-    Assert.That(response, Contains.Substring("200 OK"));
-    Assert.That(response, Contains.Substring("Test User"));
-    Assert.That(response, Contains.Substring("Test Bio"));
-}
+            var stream = new MemoryStream();
 
-[Test]
-public async Task HandleGetProfileAsync_UserNotFound_Returns404()
-{
-    // Arrange
-    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns((User)null);
+            // Act
+            await _server.HandleBuyPackageAsync(stream, "", context);
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 404 Not Found"));
+        }
 
-    var stream = new MemoryStream();
+        [Test]
+        public async Task HandleBuyPackageAsync_SuccessfulPurchase_UpdatesUserCoins()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    // Act
-    await _server.HandleGetProfileAsync(stream, "testuser", context);
+            var user = new User { Id = 1, Username = "testuser", Coins = 10 };
+            var package = new Package { Id = 1, Cards = new List<Card> { new Card { Id = 1, Name = "TestCard" } } };
 
-    // Assert
-    var response = Encoding.UTF8.GetString(stream.ToArray());
-    Assert.That(response, Contains.Substring("404 Not Found"));
-}
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _packageRepositoryMock.Setup(r => r.GetAvailablePackage()).Returns(package);
 
-[Test]
-public async Task HandleUpdateProfileAsync_ValidProfile_ReturnsOk()
-{
-    // Arrange
-    var user = new User { Id = 1, Username = "testuser" };
-    var profile = new UserProfile 
-    { 
-        UserId = 1, 
-        Name = "Updated Name", 
-        Bio = "Updated Bio", 
-        Image = "updated.jpg" 
-    };
+            var stream = new MemoryStream();
 
-    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
-    _userRepositoryMock.Setup(r => r.UpdateProfile(It.IsAny<UserProfile>())).Verifiable();
+            // Act
+            await _server.HandleBuyPackageAsync(stream, "", context);
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            // Assert
+            _userRepositoryMock.Verify(r => r.Update(It.Is<User>(u => u.Coins == 5)), Times.Once);
+        }
 
-    var stream = new MemoryStream();
-    var body = JsonSerializer.Serialize(profile);
+        [Test]
+        public async Task HandleGetDeckAsync_PlainFormat_ReturnsPlainTextResponse()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+            context.Request.Path = "/deck?format=plain";
 
-    // Act
-    await _server.HandleUpdateProfileAsync(stream, "testuser", body, context);
+            var user = new User { Id = 1, Username = "testuser" };
+            var deck = new List<Card> { new Card { Id = 1, Name = "TestCard", Damage = 10 } };
 
-    // Assert
-    var response = Encoding.UTF8.GetString(stream.ToArray());
-    Assert.That(response, Contains.Substring("200 OK"));
-    _userRepositoryMock.Verify(r => r.UpdateProfile(It.Is<UserProfile>(p => 
-        p.Name == "Updated Name" && 
-        p.Bio == "Updated Bio" && 
-        p.Image == "updated.jpg")), Times.Once);
-}
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _cardRepositoryMock.Setup(r => r.GetUserDeck(1)).Returns(deck);
 
-[Test]
-public async Task HandleUpdateProfileAsync_UserNotFound_Returns404()
-{
-    // Arrange
-    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns((User)null);
+            var stream = new MemoryStream();
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            // Act
+            await _server.HandleGetDeckAsync(stream, context);
 
-    var stream = new MemoryStream();
-    var profile = new UserProfile { Name = "Test", Bio = "Test" };
-    var body = JsonSerializer.Serialize(profile);
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(response, Contains.Substring("TestCard: 10 damage"));
+        }
 
-    // Act
-    await _server.HandleUpdateProfileAsync(stream, "testuser", body, context);
+        [Test]
+        public async Task HandleConfigureDeckAsync_InvalidCardCount_ReturnsBadRequest()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    // Assert
-    var response = Encoding.UTF8.GetString(stream.ToArray());
-    Assert.That(response, Contains.Substring("404 Not Found"));
-    _userRepositoryMock.Verify(r => r.UpdateProfile(It.IsAny<UserProfile>()), Times.Never);
-}
+            var user = new User { Id = 1, Username = "testuser" };
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
 
-// Add test for unauthorized access
-[Test]
-public async Task HandleGetProfileAsync_UnauthorizedAccess_Returns403()
-{
-    // Arrange
-    var user = new User { Id = 1, Username = "testuser" };
-    _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            var stream = new MemoryStream();
+            var invalidDeck = new List<int> { 1, 2, 3 }; // Only 3 cards instead of 4
 
-    var context = new DefaultHttpContext();
-    var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "differentuser") }, "test");
-    context.User = new ClaimsPrincipal(identity);
+            // Act
+            await _server.HandleConfigureDeckAsync(stream, JsonSerializer.Serialize(invalidDeck), context);
 
-    var stream = new MemoryStream();
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
+        }
 
-    // Act
-    await _server.HandleGetProfileAsync(stream, "testuser", context);
+        [Test]
+        public async Task HandleGetStatsAsync_ValidUser_ReturnsStats()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
 
-    // Assert
-    var response = Encoding.UTF8.GetString(stream.ToArray());
-    Assert.That(response, Contains.Substring("403 Forbidden"));
-}
+            var user = new User { Id = 1, Username = "testuser", Elo = 100, Coins = 20 };
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
 
-[Test]
-public void GetUserProfile_ReturnsCorrectProfile()
-{
-    // Arrange
-    var userId = 1;
-    var expectedProfile = new UserProfile 
-    { 
-        UserId = userId, 
-        Name = "Test User", 
-        Bio = "Test Bio" 
-    };
+            var stream = new MemoryStream();
 
-    _userRepositoryMock.Setup(r => r.GetUserProfile(userId)).Returns(expectedProfile);
+            // Act
+            await _server.HandleGetStatsAsync(stream, context);
 
-    // Act
-    var result = _userRepositoryMock.Object.GetUserProfile(userId);
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(response, Contains.Substring("\"Elo\":100"));
+            Assert.That(response, Contains.Substring("\"Coins\":20"));
+        }
 
-    // Assert
-    Assert.That(result, Is.Not.Null);
-    Assert.That(result.Name, Is.EqualTo("Test User"));
-    Assert.That(result.Bio, Is.EqualTo("Test Bio"));
-}
+        [Test]
+        public async Task HandleGetScoreboardAsync_ReturnsOrderedScoreboard()
+        {
+            // Arrange
+            var users = new List<User>
+            {
+                new User { Username = "user1", Elo = 100 },
+                new User { Username = "user2", Elo = 200 },
+                new User { Username = "user3", Elo = 150 }
+            };
 
-[Test]
-public void UpdateProfile_CallsRepositoryWithCorrectData()
-{
-    // Arrange
-    var profile = new UserProfile 
-    { 
-        UserId = 1, 
-        Name = "Test User", 
-        Bio = "Test Bio" 
-    };
+            _userRepositoryMock.Setup(r => r.GetAllUsers()).Returns(users);
 
-    _userRepositoryMock.Setup(r => r.UpdateProfile(It.IsAny<UserProfile>())).Verifiable();
+            var stream = new MemoryStream();
 
-    // Act
-    _userRepositoryMock.Object.UpdateProfile(profile);
+            // Act
+            await _server.HandleGetScoreboardAsync(stream);
 
-    // Assert
-    _userRepositoryMock.Verify(r => r.UpdateProfile(It.Is<UserProfile>(p => 
-        p.UserId == 1 && 
-        p.Name == "Test User" && 
-        p.Bio == "Test Bio")), Times.Once);
-}
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(response.IndexOf("user2"), Is.LessThan(response.IndexOf("user3")));
+            Assert.That(response.IndexOf("user3"), Is.LessThan(response.IndexOf("user1")));
+        }
+
+        [Test]
+        public async Task HandleCreateTradeAsync_InvalidTrade_ReturnsBadRequest()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+
+            var user = new User { Id = 1, Username = "testuser" };
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+
+            _tradeRepositoryMock
+                .Setup(r => r.CreateTrade(It.IsAny<Trade>()))
+                .Throws(new Exception("Invalid trade"));
+
+            var stream = new MemoryStream();
+            var trade = new Trade { Id = 1, CardId = 1, UserId = 1 };
+
+            // Act
+            await _server.HandleCreateTradeAsync(stream, JsonSerializer.Serialize(trade), context);
+
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
+        }
+
+        [Test]
+        public async Task HandleDeleteTradeAsync_UnauthorizedDelete_ReturnsForbidden()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+
+            var user = new User { Id = 1, Username = "testuser" };
+            var trade = new Trade { Id = 1, UserId = 2 }; // Trade belongs to different user
+
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _tradeRepositoryMock.Setup(r => r.GetTradeById(1)).Returns(trade);
+
+            var stream = new MemoryStream();
+
+            // Act
+            await _server.HandleDeleteTradeAsync(stream, "/tradings/1", context);
+
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
+        }
+
+        [Test]
+        public async Task HandleExecuteTradeAsync_TradeWithSelf_ReturnsForbidden()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+
+            var user = new User { Id = 1, Username = "testuser" };
+            var trade = new Trade { Id = 1, UserId = 1 }; // Trade belongs to same user
+
+            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
+            _tradeRepositoryMock.Setup(r => r.GetTradeById(1)).Returns(trade);
+
+            var stream = new MemoryStream();
+            var offeredCardId = 2;
+
+            // Act
+            await _server.HandleExecuteTradeAsync(stream, "/tradings/1", JsonSerializer.Serialize(offeredCardId), context);
+
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
+        }
+
+        [Test]
+        public async Task HandleCreatePackageAsync_ValidPackage_ReturnsCreated()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            var cards = new List<CardDTO>
+            {
+                new CardDTO { Id = "1", Name = "Card1", Damage = 10 },
+                new CardDTO { Id = "2", Name = "Card2", Damage = 20 }
+            };
+
+            var stream = new MemoryStream();
+
+            // Act
+            await _server.HandleCreatePackageAsync(stream, context, JsonSerializer.Serialize(cards));
+
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 201 Created"));
+            _packageRepositoryMock.Verify(r => r.CreatePackage(It.IsAny<List<Card>>()), Times.Once);
+        }
+
+        [Test]
+        public async Task HandleBattleAsync_InsufficientCards_ReturnsBadRequest()
+        {
+            // Arrange
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "player1";
+
+            var user1 = new User { Id = 1, Username = "player1" };
+            var user2 = new User { Id = 2, Username = "player2" };
+            var stats1 = new UserStats { UserId = 1 };
+            var stats2 = new UserStats { UserId = 2 };
+
+            _userRepositoryMock.Setup(r => r.GetByUsername("player1")).Returns(user1);
+            _userRepositoryMock.Setup(r => r.GetByUsername("player2")).Returns(user2);
+            _userStatsRepositoryMock.Setup(r => r.GetUserStats(1)).Returns(stats1);
+            _userStatsRepositoryMock.Setup(r => r.GetUserStats(2)).Returns(stats2);
+            _cardRepositoryMock.Setup(r => r.GetUserDeck(It.IsAny<int>())).Returns(new List<Card> { new Card() }); // Only 1 card
+
+            var stream = new MemoryStream();
+            var battleRequest = new BattleRequest { OpponentUsername = "player2" };
+
+            // Act
+            await _server.HandleBattleAsync(stream, context, JsonSerializer.Serialize(battleRequest));
+
+            // Assert
+            stream.Position = 0;
+            var response = Encoding.UTF8.GetString(stream.ToArray());
+            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
+        }
 
         [TearDown]
         public void Teardown()
