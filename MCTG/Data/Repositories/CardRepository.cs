@@ -1,5 +1,6 @@
 ﻿using Npgsql;
 using Dapper;
+
 namespace MCTG
 {
     public class CardRepository : ICardRepository
@@ -18,8 +19,8 @@ namespace MCTG
 
             // Check if card already exists for the user
             var existingCard = connection.QuerySingleOrDefault<Card>(
-                "SELECT * FROM cards WHERE original_id = @OriginalId AND user_id = @userId",
-                new {  userId });
+                "SELECT * FROM cards WHERE name = @Name AND user_id = @userId",
+                new { card.Name, userId });
 
             if (existingCard != null)
             {
@@ -27,10 +28,9 @@ namespace MCTG
                 return existingCard.Id;
             }
 
-            // Fix quotes around column names
             var sql = @"
-    INSERT INTO cards (original_id, ""name"", damage, element_type, card_type, user_id) 
-    VALUES (@OriginalId, @Name, @Damage, @ElementType, @CardType, @userId) 
+    INSERT INTO cards (""name"", damage, element_type, card_type, user_id) 
+    VALUES (@Name, @Damage, @ElementType, @CardType, @userId) 
     RETURNING id";
 
             try
@@ -55,20 +55,18 @@ namespace MCTG
             }
         }
 
-        
-        
         public IEnumerable<Card> GetUserCards(int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
             connection.Open();
 
             return connection.Query<Card>(@"
-        SELECT *, original_id AS OriginalId 
+        SELECT id, ""name"" AS Name, damage, element_type AS ElementType, card_type AS CardType, user_id AS UserId 
         FROM cards
         WHERE user_id = @userId",
                 new { userId });
         }
-        
+
         public Card GetCard(int cardId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
@@ -87,13 +85,13 @@ namespace MCTG
             Console.WriteLine($"Retrieved card from DB: Id={card?.Id}, Type={card?.CardType}, Element={card?.ElementType}");
             return card;
         }
-        
 
         public IEnumerable<Card> GetUserDeck(int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
             return connection.Query<Card>(@"
-                SELECT * FROM cards 
+                SELECT id, ""name"" AS Name, damage, element_type AS ElementType, card_type AS CardType, user_id AS UserId 
+                FROM cards 
                 WHERE user_id = @userId AND in_deck = true",
                 new { userId });
         }
@@ -141,7 +139,7 @@ namespace MCTG
             string cardType = cardTypes[random.Next(cardTypes.Length)];
             ElementType element = elements[random.Next(elements.Length)];
             string name;
-    
+
             if (cardType == "Monster")
             {
                 name = monsterNames[random.Next(monsterNames.Length)];

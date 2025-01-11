@@ -38,17 +38,16 @@ public class DatabaseInitializer
 
         // Create cards table
         var createCardsTable = @"
-            CREATE TABLE IF NOT EXISTS cards (
-                id SERIAL PRIMARY KEY,
-                original_id VARCHAR(36),
-                name VARCHAR(100) NOT NULL,
-                damage INTEGER NOT NULL,
-                element_type VARCHAR(50) NOT NULL,
-                card_type VARCHAR(50) NOT NULL,
-                user_id INTEGER,
-                in_deck BOOLEAN DEFAULT false,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )";
+    CREATE TABLE IF NOT EXISTS cards (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        damage INTEGER NOT NULL,
+        element_type VARCHAR(50) NOT NULL,
+        card_type VARCHAR(50) NOT NULL,
+        user_id INTEGER,
+        in_deck BOOLEAN DEFAULT false,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
         
         // Create battle_history table
         var createBattleHistoryTable = @"
