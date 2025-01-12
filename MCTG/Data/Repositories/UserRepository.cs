@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Dapper;
-using Npgsql;
+﻿using Npgsql;
 
 namespace MCTG
 {
@@ -26,16 +22,32 @@ namespace MCTG
 
             using var connection = new NpgsqlConnection(_connectionString);
             connection.Open();
-            Console.WriteLine($"Looking up user with username: '{username}'");  // Added quotes to see any whitespace
-    
+            Console.WriteLine($"Looking up user with username: '{username}'");
+
             try
             {
-                var user = connection.QuerySingleOrDefault<User>(
-                    "SELECT * FROM users WHERE username = @username",
-                    new { username });
-            
-                Console.WriteLine($"Database lookup result: {(user != null ? $"Found user {user.Username}" : "User not found")}");
-                return user;
+                using var cmd = new NpgsqlCommand(
+                    "SELECT * FROM users WHERE username = @username", 
+                    connection);
+                cmd.Parameters.AddWithValue("@username", username);
+
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    var user = new User
+                    {
+                        Id = reader.GetInt32(reader.GetOrdinal("id")),
+                        Username = reader.GetString(reader.GetOrdinal("username")),
+                        Password = reader.GetString(reader.GetOrdinal("password")),
+                        Coins = reader.GetInt32(reader.GetOrdinal("coins")),
+                        Elo = reader.GetInt32(reader.GetOrdinal("elo"))
+                    };
+                    Console.WriteLine($"Database lookup result: Found user {user.Username}");
+                    return user;
+                }
+
+                Console.WriteLine("Database lookup result: User not found");
+                return null;
             }
             catch (Exception ex)
             {
@@ -43,17 +55,23 @@ namespace MCTG
                 throw;
             }
         }
+
         public void Add(User user)
         {
             try
             {
                 using var connection = new NpgsqlConnection(_connectionString);
-                var userDto = user.ToDto();
-                connection.Execute(@"
-                    INSERT INTO users (username, password, coins, elo) 
-                    VALUES (@Username, @Password, @Coins, @Elo)",
-                    userDto);
-                
+                connection.Open();
+                using var cmd = new NpgsqlCommand(
+                    "INSERT INTO users (username, password, coins, elo) VALUES (@Username, @Password, @Coins, @Elo)",
+                    connection);
+
+                cmd.Parameters.AddWithValue("@Username", user.Username);
+                cmd.Parameters.AddWithValue("@Password", user.Password);
+                cmd.Parameters.AddWithValue("@Coins", user.Coins);
+                cmd.Parameters.AddWithValue("@Elo", user.Elo);
+
+                cmd.ExecuteNonQuery();
                 Console.WriteLine($"Successfully added user: {user.Username}");
             }
             catch (Exception ex)
@@ -63,16 +81,50 @@ namespace MCTG
             }
         }
 
+        public void Update(User user)
+        {
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                connection.Open();
+                using var cmd = new NpgsqlCommand(@"
+                    UPDATE users 
+                    SET coins = @Coins, 
+                        elo = @Elo,
+                        password = @Password
+                    WHERE id = @Id",
+                    connection);
+
+                cmd.Parameters.AddWithValue("@Id", user.Id);
+                cmd.Parameters.AddWithValue("@Coins", user.Coins);
+                cmd.Parameters.AddWithValue("@Elo", user.Elo);
+                cmd.Parameters.AddWithValue("@Password", user.Password);
+
+                cmd.ExecuteNonQuery();
+                Console.WriteLine($"Successfully updated user: {user.Username}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in Update: {ex.Message}");
+                throw;
+            }
+        }
+
         public bool ValidateCredentials(string username, string password)
         {
             try
             {
                 using var connection = new NpgsqlConnection(_connectionString);
-                var userDto = connection.QuerySingleOrDefault<UserDto>(
-                    "SELECT * FROM users WHERE username = @username AND password = @password",
-                    new { username, password });
+                connection.Open();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT COUNT(*) FROM users WHERE username = @username AND password = @password",
+                    connection);
 
-                bool isValid = userDto != null;
+                cmd.Parameters.AddWithValue("@username", username);
+                cmd.Parameters.AddWithValue("@password", password);
+
+                int count = Convert.ToInt32(cmd.ExecuteScalar());
+                bool isValid = count > 0;
                 Console.WriteLine($"ValidateCredentials: {isValid} for username: {username}");
                 return isValid;
             }
@@ -83,40 +135,30 @@ namespace MCTG
             }
         }
 
-        public void Update(User user)
-        {
-            try
-            {
-                using var connection = new NpgsqlConnection(_connectionString);
-                var userDto = user.ToDto();
-                connection.Execute(@"
-                    UPDATE users 
-                    SET coins = @Coins, 
-                        elo = @Elo,
-                        password = @Password
-                    WHERE id = @Id",
-                    userDto);
-                
-                Console.WriteLine($"Successfully updated user: {user.Username}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in Update: {ex.Message}");
-                throw;
-            }
-        }
-
         public IEnumerable<User> GetAllUsers()
         {
+            var users = new List<User>();
             try
             {
                 using var connection = new NpgsqlConnection(_connectionString);
-                var userDtos = connection.Query<UserDto>(@"
-                    SELECT id, username, password, coins, elo 
-                    FROM users 
-                    ORDER BY elo DESC");
+                connection.Open();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT id, username, password, coins, elo FROM users ORDER BY elo DESC",
+                    connection);
 
-                return userDtos.Select(dto => User.FromDto(dto));
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    users.Add(new User
+                    {
+                        Id = reader.GetInt32(reader.GetOrdinal("id")),
+                        Username = reader.GetString(reader.GetOrdinal("username")),
+                        Password = reader.GetString(reader.GetOrdinal("password")),
+                        Coins = reader.GetInt32(reader.GetOrdinal("coins")),
+                        Elo = reader.GetInt32(reader.GetOrdinal("elo"))
+                    });
+                }
+                return users;
             }
             catch (Exception ex)
             {
@@ -130,14 +172,29 @@ namespace MCTG
             try
             {
                 using var connection = new NpgsqlConnection(_connectionString);
-                var profile = connection.QuerySingleOrDefault<UserProfile>(@"
-                    SELECT user_id as UserId, name, bio, image 
+                connection.Open();
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT user_id, name, bio, image 
                     FROM user_profiles 
                     WHERE user_id = @UserId",
-                    new { UserId = userId });
+                    connection);
 
-                Console.WriteLine($"Retrieved profile for user ID: {userId}");
-                return profile;
+                cmd.Parameters.AddWithValue("@UserId", userId);
+
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    var profile = new UserProfile
+                    {
+                        UserId = reader.GetInt32(reader.GetOrdinal("user_id")),
+                        Name = reader.GetString(reader.GetOrdinal("name")),
+                        Bio = reader.GetString(reader.GetOrdinal("bio")),
+                        Image = reader.GetString(reader.GetOrdinal("image"))
+                    };
+                    Console.WriteLine($"Retrieved profile for user ID: {userId}");
+                    return profile;
+                }
+                return null;
             }
             catch (Exception ex)
             {
@@ -151,7 +208,8 @@ namespace MCTG
             try
             {
                 using var connection = new NpgsqlConnection(_connectionString);
-                connection.Execute(@"
+                connection.Open();
+                using var cmd = new NpgsqlCommand(@"
                     INSERT INTO user_profiles (user_id, name, bio, image)
                     VALUES (@UserId, @Name, @Bio, @Image)
                     ON CONFLICT (user_id) 
@@ -159,14 +217,82 @@ namespace MCTG
                         name = @Name,
                         bio = @Bio,
                         image = @Image",
-                    profile);
+                    connection);
 
+                cmd.Parameters.AddWithValue("@UserId", profile.UserId);
+                cmd.Parameters.AddWithValue("@Name", profile.Name);
+                cmd.Parameters.AddWithValue("@Bio", profile.Bio);
+                cmd.Parameters.AddWithValue("@Image", profile.Image);
+
+                cmd.ExecuteNonQuery();
                 Console.WriteLine($"Updated profile for user ID: {profile.UserId}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in UpdateProfile: {ex.Message}");
                 throw;
+            }
+        }
+
+        public void DeleteUser(int userId)
+        {
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                connection.Open();
+                using var cmd = new NpgsqlCommand(
+                    "DELETE FROM users WHERE id = @Id",
+                    connection);
+
+                cmd.Parameters.AddWithValue("@Id", userId);
+                cmd.ExecuteNonQuery();
+                Console.WriteLine($"Deleted user with ID: {userId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in DeleteUser: {ex.Message}");
+                throw;
+            }
+        }
+
+        public bool UserExists(string username)
+        {
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                connection.Open();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT EXISTS(SELECT 1 FROM users WHERE username = @username)",
+                    connection);
+
+                cmd.Parameters.AddWithValue("@username", username);
+                bool exists = (bool)cmd.ExecuteScalar();
+                Console.WriteLine($"Checked existence for username {username}: {exists}");
+                return exists;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in UserExists: {ex.Message}");
+                return false;
+            }
+        }
+
+        public int GetUserCount()
+        {
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                connection.Open();
+                using var cmd = new NpgsqlCommand(
+                    "SELECT COUNT(*) FROM users",
+                    connection);
+
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in GetUserCount: {ex.Message}");
+                return 0;
             }
         }
 
@@ -183,54 +309,6 @@ namespace MCTG
             {
                 Console.WriteLine($"Error in GenerateToken: {ex.Message}");
                 throw;
-            }
-        }
-
-        public void DeleteUser(int userId)
-        {
-            try
-            {
-                using var connection = new NpgsqlConnection(_connectionString);
-                connection.Execute("DELETE FROM users WHERE id = @Id", new { Id = userId });
-                Console.WriteLine($"Deleted user with ID: {userId}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in DeleteUser: {ex.Message}");
-                throw;
-            }
-        }
-
-        public bool UserExists(string username)
-        {
-            try
-            {
-                using var connection = new NpgsqlConnection(_connectionString);
-                var exists = connection.ExecuteScalar<bool>(
-                    "SELECT EXISTS(SELECT 1 FROM users WHERE username = @username)",
-                    new { username });
-
-                Console.WriteLine($"Checked existence for username {username}: {exists}");
-                return exists;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in UserExists: {ex.Message}");
-                return false;
-            }
-        }
-
-        public int GetUserCount()
-        {
-            try
-            {
-                using var connection = new NpgsqlConnection(_connectionString);
-                return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM users");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in GetUserCount: {ex.Message}");
-                return 0;
             }
         }
     }

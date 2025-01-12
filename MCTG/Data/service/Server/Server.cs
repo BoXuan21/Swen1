@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Npgsql;
 
 namespace MCTG
 {
@@ -10,27 +11,22 @@ namespace MCTG
     {
         private readonly TcpListener _listener;
         private readonly IUserRepository _userRepository;
-        private readonly ICardRepository _cardRepository;
-        private readonly ITradeRepository _tradeRepository;
-        private readonly IBattleRepository _battleRepository;
         private readonly IJwtService _jwtService;
         private readonly JwtMiddleware _jwtMiddleware;
         private readonly IPackageRepository _packageRepository;
-        private readonly IUserStatsRepository _userStatsRepository;
+        private readonly ICardRepository _cardRepository;
+        private readonly string _connectionString;
 
-        public TcpServer(int port, IUserRepository userRepository, ICardRepository cardRepository, 
-            ITradeRepository tradeRepository, IBattleRepository battleRepository, 
-            IJwtService jwtService, IUserStatsRepository userStatsRepository, IPackageRepository packageRepository)
+        public TcpServer(int port, IUserRepository userRepository, IJwtService jwtService, 
+            IPackageRepository packageRepository, ICardRepository cardRepository, string connectionString)
         {
             _listener = new TcpListener(IPAddress.Any, port);
             _userRepository = userRepository;
-            _cardRepository = cardRepository;
-            _tradeRepository = tradeRepository;
-            _battleRepository = battleRepository;
             _jwtService = jwtService;
-            _packageRepository = packageRepository;
-            _userStatsRepository = userStatsRepository;
             _jwtMiddleware = new JwtMiddleware(null, jwtService);
+            _packageRepository = packageRepository;
+            _cardRepository = cardRepository;
+            _connectionString = connectionString;
         }
 
         public void Start()
@@ -115,7 +111,6 @@ namespace MCTG
                     var headerParts = line.Split(": ", 2);
                     if (headerParts.Length == 2)
                     {
-                        Console.WriteLine($"Header: {headerParts[0]} = {headerParts[1]}");
                         context.Request.Headers[headerParts[0]] = headerParts[1];
                     }
                 }
@@ -142,44 +137,20 @@ namespace MCTG
                         case "POST /sessions":
                             await HandleLoginAsync(responseStream, body);
                             break;
-                        case "GET /cards":
-                            await HandleGetCardsAsync(responseStream, context);
-                            break;
                         case "POST /transactions/packages":
                             await HandleBuyPackageAsync(responseStream, body, context);
                             break;
                         case "POST /packages":
-                            await HandleCreatePackageAsync(responseStream, context, body);
+                            await HandleCreatePackageAsync(responseStream, body, context);
                             break;
-                        case "POST /battles": 
-                            await HandleBattleAsync(responseStream, context, body);
+                        case "GET /cards":
+                            await HandleGetCardsAsync(responseStream, context);
                             break;
                         case "GET /deck":
                             await HandleGetDeckAsync(responseStream, context);
                             break;
                         case "PUT /deck":
                             await HandleConfigureDeckAsync(responseStream, body, context);
-                            break;
-                        case "GET /stats":
-                            await HandleGetStatsAsync(responseStream, context);
-                            break;
-                        case "GET /scoreboard":
-                            await HandleGetScoreboardAsync(responseStream);
-                            break;
-                        case "GET /tradings":
-                            await HandleGetTradingsAsync(responseStream);
-                            break;
-                        case "POST /tradings":
-                            await HandleCreateTradeAsync(responseStream, body, context);
-                            break;
-                        case var tradingPath when method == "POST" && path.StartsWith("/tradings/"):
-                            await HandleExecuteTradeAsync(responseStream, path, body, context);
-                            break;
-                        case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
-                            await HandleDeleteTradeAsync(responseStream, path, context);
-                            break;
-                        case "GET /history":
-                            await HandleGetBattleHistoryAsync(responseStream, context);
                             break;
                         case var profilePath when path.StartsWith("/users/") && method == "GET":
                             await HandleGetProfileAsync(responseStream, path.Split('/')[2], context);

@@ -7,7 +7,7 @@ namespace MCTG_Test
 {
     public class TradeRepositoryTests
     {
-        private string _connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
+        private readonly string _connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
         private ITradeRepository _tradeRepository;
         private ICardRepository _cardRepository;
         private IUserRepository _userRepository;

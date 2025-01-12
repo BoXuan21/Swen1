@@ -19,23 +19,18 @@ namespace MCTG
 
                 // Create instances of required services
                 IUserRepository userRepository = new UserRepository(connectionString);
+                IJwtService jwtService = new JwtService(jwtSecretKey);
                 ICardRepository cardRepository = new CardRepository(connectionString);
-                ITradeRepository tradeRepository = new TradeRepository(connectionString, cardRepository);
-                IBattleRepository battleRepository = new BattleRepository(connectionString);
                 IPackageRepository packageRepository = new PackageRepository(connectionString, cardRepository);
-                IUserStatsRepository userStatsRepository = new UserStatsRepository(connectionString);
-                JwtService jwtService = new JwtService(jwtSecretKey);
 
                 // Start server
                 var server = new TcpServer(
                     port: 10001,
                     userRepository: userRepository,
-                    cardRepository: cardRepository,
-                    tradeRepository: tradeRepository,
-                    battleRepository: battleRepository,
                     jwtService: jwtService,
-                    userStatsRepository: userStatsRepository,
-                    packageRepository: packageRepository
+                    packageRepository: packageRepository,
+                    cardRepository: cardRepository,
+                    connectionString: connectionString
                 );
                 server.Start();
             }

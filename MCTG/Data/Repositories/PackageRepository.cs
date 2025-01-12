@@ -1,5 +1,4 @@
 ﻿using Npgsql;
-using Dapper;
 namespace MCTG;
 
 public class PackageRepository : IPackageRepository
@@ -23,24 +22,36 @@ public class PackageRepository : IPackageRepository
         {
             Console.WriteLine("Creating new package...");
         
-            // Get admin user id (or create a system user if needed)
-            var adminId = connection.QuerySingle<int>("SELECT id FROM users WHERE username = 'admin'");
+            // Get admin user id
+            using var adminCmd = new NpgsqlCommand(
+                "SELECT id FROM users WHERE username = 'admin'", 
+                connection, 
+                transaction);
+            var adminId = (int)adminCmd.ExecuteScalar();
         
             // Create package
-            var packageId = connection.QuerySingle<int>(
-                "INSERT INTO packages (is_sold) VALUES (false) RETURNING id");
+            using var packageCmd = new NpgsqlCommand(
+                "INSERT INTO packages (is_sold) VALUES (false) RETURNING id", 
+                connection, 
+                transaction);
+            var packageId = (int)packageCmd.ExecuteScalar();
             Console.WriteLine($"Created package with ID: {packageId}");
 
             // Add cards to package
+            using var cardCmd = new NpgsqlCommand(
+                "INSERT INTO package_cards (package_id, card_id) VALUES (@PackageId, @CardId)",
+                connection,
+                transaction);
+            cardCmd.Parameters.AddWithValue("@PackageId", packageId);
+            var cardIdParam = cardCmd.Parameters.Add("@CardId", NpgsqlTypes.NpgsqlDbType.Integer);
+
             foreach (var card in cards)
             {
                 DetermineCardTypes(card);
                 Console.WriteLine($"Adding card {card.Name} to package {packageId}");
-                var cardId = _cardRepository.AddCard(card, adminId);  // Use admin ID instead of null
-                connection.Execute(
-                    "INSERT INTO package_cards (package_id, card_id) VALUES (@PackageId, @CardId)",
-                    new { PackageId = packageId, CardId = cardId },
-                    transaction);
+                var cardId = _cardRepository.AddCard(card, adminId);
+                cardIdParam.Value = cardId;
+                cardCmd.ExecuteNonQuery();
             }
 
             transaction.Commit();
@@ -92,26 +103,47 @@ public class PackageRepository : IPackageRepository
     {
         using var connection = new NpgsqlConnection(_connectionString);
         connection.Open();
-        
+    
         try
         {
-            var packageId = connection.QuerySingleOrDefault<int?>(
-                "SELECT id FROM packages WHERE is_sold = false ORDER BY id LIMIT 1");
-
+            // Get first available package
+            using var packageCmd = new NpgsqlCommand(
+                "SELECT id FROM packages WHERE is_sold = false ORDER BY id LIMIT 1",
+                connection);
+        
+            var packageId = packageCmd.ExecuteScalar() as int?;
             if (!packageId.HasValue)
                 return null;
 
-            var cards = connection.Query<Card>(@"
-                SELECT c.* 
-                FROM cards c
-                JOIN package_cards pc ON pc.card_id = c.id
-                WHERE pc.package_id = @PackageId",
-                new { PackageId = packageId });
+            // Get cards for package
+            using var cardsCmd = new NpgsqlCommand(@"
+            SELECT c.id, c.name, c.damage, c.element_type, c.card_type, c.user_id 
+            FROM cards c
+            JOIN package_cards pc ON pc.card_id = c.id
+            WHERE pc.package_id = @PackageId",
+                connection);
+            cardsCmd.Parameters.AddWithValue("@PackageId", packageId.Value);
+
+            var cards = new List<Card>();
+            using var reader = cardsCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                cards.Add(new Card
+                {
+                    Id = reader.GetInt32(reader.GetOrdinal("id")),
+                    Name = reader.GetString(reader.GetOrdinal("name")),
+                    Damage = reader.GetInt32(reader.GetOrdinal("damage")),
+                    ElementType = (ElementType)Enum.Parse(typeof(ElementType), reader.GetString(reader.GetOrdinal("element_type"))),
+                    CardType = reader.GetString(reader.GetOrdinal("card_type")),
+                    UserId = !reader.IsDBNull(reader.GetOrdinal("user_id")) ? 
+                        reader.GetInt32(reader.GetOrdinal("user_id")) : null
+                });
+            }
 
             return new Package
             {
                 Id = packageId.Value,
-                Cards = cards.ToList(),
+                Cards = cards,
                 IsSold = false
             };
         }
@@ -130,26 +162,35 @@ public class PackageRepository : IPackageRepository
 
         try
         {
-            connection.Execute(@"
-            UPDATE packages
-            SET is_sold = true,
-                bought_by_user_id = @UserId,
-                purchase_date = CURRENT_TIMESTAMP
-            WHERE id = @PackageId",
-                new { PackageId = packageId, UserId = userId },
+            // Update package status
+            using var packageCmd = new NpgsqlCommand(@"
+                UPDATE packages
+                SET is_sold = true,
+                    bought_by_user_id = @UserId,
+                    purchase_date = CURRENT_TIMESTAMP
+                WHERE id = @PackageId",
+                connection, 
                 transaction);
+            
+            packageCmd.Parameters.AddWithValue("@PackageId", packageId);
+            packageCmd.Parameters.AddWithValue("@UserId", userId);
+            packageCmd.ExecuteNonQuery();
 
-            // Update cards table with existing user ID from package_cards
-            connection.Execute(@"
-            UPDATE cards
-            SET user_id = @UserId
-            WHERE id IN (
-                SELECT card_id
-                FROM package_cards
-                WHERE package_id = @PackageId
-            )",
-                new { PackageId = packageId, UserId = userId },
+            // Update card ownership
+            using var cardsCmd = new NpgsqlCommand(@"
+                UPDATE cards
+                SET user_id = @UserId
+                WHERE id IN (
+                    SELECT card_id
+                    FROM package_cards
+                    WHERE package_id = @PackageId
+                )",
+                connection,
                 transaction);
+            
+            cardsCmd.Parameters.AddWithValue("@PackageId", packageId);
+            cardsCmd.Parameters.AddWithValue("@UserId", userId);
+            cardsCmd.ExecuteNonQuery();
 
             transaction.Commit();
         }
@@ -160,7 +201,4 @@ public class PackageRepository : IPackageRepository
             throw;
         }
     }
-
- 
-    
 }
