@@ -1,15 +1,4 @@
-﻿// UserDto.cs - For database operations
-public class UserDto
-{
-    public int Id { get; set; }
-    public string Username { get; set; }
-    public string Password { get; set; }
-    public int Coins { get; set; }
-    public int Elo { get; set; }
-}
-
-// User.cs - Your domain model
-namespace MCTG
+﻿namespace MCTG
 {
     public class User
     {
@@ -56,33 +45,6 @@ namespace MCTG
         public void AddCardsToDeck()
         {
             CardController.MoveMultipleCards(Stack.Cards, Deck, Stack.Cards.Take(Deck.Count < 10 ? 10 - Deck.Count : 0));
-        }
-        
-        // Convert to database model
-        public UserDto ToDto()
-        {
-            return new UserDto
-            {
-                Id = this.Id,
-                Username = this.Username,
-                Password = this.Password,
-                Coins = this.Coins,
-                Elo = this.Elo
-            };
-        }
-
-        // Create from database model
-        public static User FromDto(UserDto dto)
-        {
-            var user = new User
-            {
-                Id = dto.Id,
-                Username = dto.Username,
-                Password = dto.Password,
-                Coins = dto.Coins,
-                Elo = dto.Elo
-            };
-            return user;
         }
     }
 }

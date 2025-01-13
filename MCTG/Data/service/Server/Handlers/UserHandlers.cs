@@ -5,7 +5,7 @@ namespace MCTG
 {
     public partial class TcpServer
     {
-       public async Task HandleRegistrationAsync(Stream stream, string body)
+    public async Task HandleRegistrationAsync(Stream stream, string body)
 {
     try
     {
@@ -235,5 +235,5 @@ public async Task HandleUpdateProfileAsync(Stream stream, string username, strin
             "An unexpected error occurred while updating the profile");
     }
 }
-    }
 }
+    }
