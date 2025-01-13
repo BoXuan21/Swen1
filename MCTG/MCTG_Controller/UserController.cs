@@ -5,6 +5,7 @@ using System.IO;
 namespace MCTG
 {
     public class UserController
+    //Was for local storage
     {
         private Dictionary<string, string> userCredentials;
 

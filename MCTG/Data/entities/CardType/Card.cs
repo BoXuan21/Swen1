@@ -10,7 +10,7 @@
         public string CardType { get; set; }
         public int? UserId { get; set; }
         
-        public Card(string name, int damage, ElementType element, string originalId = null)
+        public Card(string name, int damage, ElementType element)
         {
             Name = name;
             Damage = damage;

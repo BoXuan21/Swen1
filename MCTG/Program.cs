@@ -7,7 +7,7 @@ namespace MCTG
     {
         public static void Main(string[] args)
         {
-            string connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
+            string connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;Include Error Detail=true;";
             string jwtSecretKey = "your-secret-key-at-least-16-chars";
    
             try
@@ -22,6 +22,9 @@ namespace MCTG
                 IJwtService jwtService = new JwtService(jwtSecretKey);
                 ICardRepository cardRepository = new CardRepository(connectionString);
                 IPackageRepository packageRepository = new PackageRepository(connectionString, cardRepository);
+                IBattleRepository battleRepository = new BattleRepository(connectionString);
+                ITradeRepository tradeRepository = new TradeRepository(connectionString, cardRepository);
+                IUserStatsRepository userStatsRepository = new UserStatsRepository(connectionString);
 
                 // Start server
                 var server = new TcpServer(
@@ -30,7 +33,10 @@ namespace MCTG
                     jwtService: jwtService,
                     packageRepository: packageRepository,
                     cardRepository: cardRepository,
-                    connectionString: connectionString
+                    connectionString: connectionString,
+                    battleRepository: battleRepository,
+                    tradeRepository: tradeRepository,
+                    userStatsRepository: userStatsRepository
                 );
                 server.Start();
             }

@@ -15,17 +15,25 @@ namespace MCTG
         private readonly JwtMiddleware _jwtMiddleware;
         private readonly IPackageRepository _packageRepository;
         private readonly ICardRepository _cardRepository;
+        private readonly IBattleRepository _battleRepository;
+        private readonly ITradeRepository _tradeRepository;
+        private readonly IUserStatsRepository _userStatsRepository;
         private readonly string _connectionString;
 
-        public TcpServer(int port, IUserRepository userRepository, IJwtService jwtService, 
-            IPackageRepository packageRepository, ICardRepository cardRepository, string connectionString)
+        public TcpServer(int port, IUserRepository userRepository, ICardRepository cardRepository, 
+            IJwtService jwtService, IPackageRepository packageRepository, IBattleRepository battleRepository,
+            ITradeRepository tradeRepository, IUserStatsRepository userStatsRepository,
+            string connectionString)
         {
             _listener = new TcpListener(IPAddress.Any, port);
             _userRepository = userRepository;
+            _cardRepository = cardRepository;
             _jwtService = jwtService;
             _jwtMiddleware = new JwtMiddleware(null, jwtService);
             _packageRepository = packageRepository;
-            _cardRepository = cardRepository;
+            _battleRepository = battleRepository;
+            _tradeRepository = tradeRepository;
+            _userStatsRepository = userStatsRepository;
             _connectionString = connectionString;
         }
 
@@ -151,6 +159,27 @@ namespace MCTG
                             break;
                         case "PUT /deck":
                             await HandleConfigureDeckAsync(responseStream, body, context);
+                            break;
+                        case "POST /battles":
+                            await HandleBattleAsync(responseStream, context, body);
+                            break;
+                        case "GET /tradings":
+                            await HandleGetTradingsAsync(responseStream);
+                            break;
+                        case "POST /tradings":
+                            await HandleCreateTradeAsync(responseStream, body, context);
+                            break;
+                        case "GET /stats":
+                            await HandleGetStatsAsync(responseStream, context);
+                            break;
+                        case "GET /scoreboard":
+                            await HandleGetScoreboardAsync(responseStream);
+                            break;
+                        case var tradingPath when method == "POST" && path.StartsWith("/tradings/"):
+                            await HandleExecuteTradeAsync(responseStream, path, body, context);
+                            break;
+                        case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
+                            await HandleDeleteTradeAsync(responseStream, path, context);
                             break;
                         case var profilePath when path.StartsWith("/users/") && method == "GET":
                             await HandleGetProfileAsync(responseStream, path.Split('/')[2], context);
