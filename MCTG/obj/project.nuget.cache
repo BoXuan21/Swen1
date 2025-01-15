@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "73bnfayBcl4=",
+  "dgSpecHash": "MN/lBvkacSM=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\MCTG.csproj",
+  "projectFilePath": "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG\\MCTG.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Bo Xuan Yang\\.nuget\\packages\\castle.core\\5.1.1\\castle.core.5.1.1.nupkg.sha512",
     "C:\\Users\\Bo Xuan Yang\\.nuget\\packages\\dapper\\2.1.35\\dapper.2.1.35.nupkg.sha512",

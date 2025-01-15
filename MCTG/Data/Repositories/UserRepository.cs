@@ -296,20 +296,6 @@ namespace MCTG
             }
         }
 
-        public string GenerateToken(string username)
-        {
-            try
-            {
-                string token = $"{username}-mtcgToken";
-                _tokens[username] = token;
-                Console.WriteLine($"Generated token for user: {username}");
-                return token;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error in GenerateToken: {ex.Message}");
-                throw;
-            }
-        }
+        
     }
 }

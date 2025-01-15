@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "PH8uTa7PFKY=",
+  "dgSpecHash": "4dX5R//cM4Y=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG_Test\\MCTG_Test.csproj",
+  "projectFilePath": "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG_Test\\MCTG_Test.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Bo Xuan Yang\\.nuget\\packages\\castle.core\\5.1.1\\castle.core.5.1.1.nupkg.sha512",
     "C:\\Users\\Bo Xuan Yang\\.nuget\\packages\\coverlet.collector\\6.0.0\\coverlet.collector.6.0.0.nupkg.sha512",

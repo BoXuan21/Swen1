@@ -10,7 +10,6 @@ namespace MCTG
         {
             _connectionString = connectionString;
         }
-
         public int AddCard(Card card, int userId)
         {
             using var connection = new NpgsqlConnection(_connectionString);
@@ -19,37 +18,22 @@ namespace MCTG
 
             try
             {
-                // Check if card already exists for the user
-                using var checkCmd = new NpgsqlCommand(
-                    "SELECT id FROM cards WHERE name = @Name AND user_id = @UserId",
-                    connection);
-                checkCmd.Parameters.AddWithValue("@Name", card.Name);
-                checkCmd.Parameters.AddWithValue("@UserId", userId);
-
-                var existingId = checkCmd.ExecuteScalar();
-                if (existingId != null)
-                {
-                    // Card already exists, return existing ID
-                    transaction.Commit();
-                    return (int)existingId;
-                }
-
                 // Insert new card
                 using var insertCmd = new NpgsqlCommand(@"
-                    INSERT INTO cards (name, damage, element_type, card_type, user_id) 
-                    VALUES (@Name, @Damage, @ElementType, @CardType, @UserId) 
-                    RETURNING id",
+            INSERT INTO cards (name, damage, element_type, card_type, user_id) 
+            VALUES (@Name, @Damage, @ElementType, @CardType, @UserId) 
+            RETURNING id",
                     connection);
 
                 insertCmd.Parameters.AddWithValue("@Name", card.Name);
                 insertCmd.Parameters.AddWithValue("@Damage", card.Damage);
-                insertCmd.Parameters.AddWithValue("@ElementType", (int)card.ElementType);
+                insertCmd.Parameters.AddWithValue("@ElementType", card.ElementType.ToString());
                 insertCmd.Parameters.AddWithValue("@CardType", card.CardType);
                 insertCmd.Parameters.AddWithValue("@UserId", userId);
 
                 var id = (int)insertCmd.ExecuteScalar();
                 Console.WriteLine($"Card added successfully with ID: {id}, CardType: {card.CardType}");
-                
+        
                 transaction.Commit();
                 return id;
             }

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\MCTG.csproj": {}
+    "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG\\MCTG.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\MCTG.csproj": {
+    "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG\\MCTG.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\MCTG.csproj",
+        "projectUniqueName": "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG\\MCTG.csproj",
         "projectName": "MCTG",
-        "projectPath": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\MCTG.csproj",
+        "projectPath": "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG\\MCTG.csproj",
         "packagesPath": "C:\\Users\\Bo Xuan Yang\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Bo Xuan Yang\\Desktop\\Projects\\MCTG\\MCTG\\obj\\",
+        "outputPath": "C:\\Users\\Bo Xuan Yang\\RiderProjects\\Swen1\\MCTG\\obj\\",
         "projectStyle": "PackageReference",
         "UsingMicrosoftNETSdk": false,
         "configFilePaths": [

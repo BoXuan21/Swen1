@@ -8,10 +8,6 @@ public class BattleLogic
         public string Winner { get; set; }
         public int FinalScore1 { get; set; }
         public int FinalScore2 { get; set; }
-        public int Player1EloChange { get; set; }
-        public int Player2EloChange { get; set; }
-        public List<Card> CardsExchanged { get; set; } = new List<Card>();
-        public DateTime BattleTime { get; set; } = DateTime.UtcNow;
     }
 
     private readonly User _user1;
