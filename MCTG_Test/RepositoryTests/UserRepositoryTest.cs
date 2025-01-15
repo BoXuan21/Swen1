@@ -1,75 +1,216 @@
-﻿using Npgsql;
-using Dapper;
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
-using System.Security.Claims;
+﻿using NUnit.Framework;
+using Npgsql;
 
-namespace MCTG;
-
-public class UserRepositoryTests
+namespace MCTG.Tests
 {
-    private readonly string _connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
-    private readonly string _jwtSecretKey = "your-secret-key-at-least-16-chars";
-    private IUserRepository _userRepository;
-    private JwtService _jwtService;
-
-    [SetUp]
-    public void Setup()
+    [TestFixture]
+    public class UserRepositoryTests
     {
-        _userRepository = new UserRepository(_connectionString);
-        _jwtService = new JwtService(_jwtSecretKey);
-    }
+        private string _connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;";
+        private IUserRepository _repository;
 
-    [Test]
-    public void Add_ShouldCreateNewUser()
-    {
-        // Arrange
-        var user = new User { Username = "testuser1", Password = "test123" };
+        [SetUp]
+        public void Setup()
+        {
+            _repository = new UserRepository(_connectionString);
+            
+            // Clean up any test data
+            using var conn = new NpgsqlConnection(_connectionString);
+            conn.Open();
+            using var cmd = new NpgsqlCommand(
+                @"DELETE FROM user_profiles WHERE user_id IN (SELECT id FROM users WHERE username LIKE 'test_%');
+                  DELETE FROM users WHERE username LIKE 'test_%'",
+                conn);
+            cmd.ExecuteNonQuery();
+        }
 
-        // Act
-        _userRepository.Add(user);
-        var retrievedUser = _userRepository.GetByUsername("testuser1");
+        [Test]
+        public void Add_NewUser_AddsSuccessfully()
+        {
+            // Arrange
+            var user = new User
+            {
+                Username = "test_user1",
+                Password = "test123",
+                Coins = 20,
+                Elo = 100
+            };
 
-        // Assert
-        Assert.That(retrievedUser, Is.Not.Null);
-        Assert.That(retrievedUser.Username, Is.EqualTo("testuser1"));
-    }
+            // Act
+            Assert.DoesNotThrow(() => _repository.Add(user));
 
-    [Test]
-    public void ValidateCredentials_ShouldReturnTrueForValidCredentials()
-    {
-        // Arrange
-        var user = new User { Username = "testuser2", Password = "test123" };
-        _userRepository.Add(user);
+            // Assert
+            var addedUser = _repository.GetByUsername("test_user1");
+            Assert.That(addedUser, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(addedUser.Username, Is.EqualTo(user.Username));
+                Assert.That(addedUser.Coins, Is.EqualTo(20));
+                Assert.That(addedUser.Elo, Is.EqualTo(100));
+            });
+        }
 
-        // Act
-        var isValid = _userRepository.ValidateCredentials("testuser2", "test123");
+        [Test]
+        public void GetByUsername_NonExistentUser_ReturnsNull()
+        {
+            // Act
+            var result = _repository.GetByUsername("nonexistent_user");
 
-        // Assert
-        Assert.That(isValid, Is.True);
-    }
+            // Assert
+            Assert.That(result, Is.Null);
+        }
 
-    [Test]
-    public void ValidateCredentials_ShouldReturnFalseForInvalidCredentials()
-    {
-        // Arrange
-        var user = new User { Username = "testuser3", Password = "test123" };
-        _userRepository.Add(user);
+        [Test]
+        public void Update_ExistingUser_UpdatesSuccessfully()
+        {
+            // Arrange
+            var user = new User
+            {
+                Username = "test_user2",
+                Password = "test123",
+                Coins = 20,
+                Elo = 100
+            };
+            _repository.Add(user);
+            var addedUser = _repository.GetByUsername(user.Username);
 
-        // Act
-        var isValid = _userRepository.ValidateCredentials("testuser3", "wrongpassword");
+            // Act
+            addedUser.Coins = 25;
+            addedUser.Elo = 110;
+            _repository.Update(addedUser);
 
-        // Assert
-        Assert.That(isValid, Is.False);
-    }
+            // Assert
+            var updatedUser = _repository.GetByUsername(user.Username);
+            Assert.Multiple(() =>
+            {
+                Assert.That(updatedUser.Coins, Is.EqualTo(25));
+                Assert.That(updatedUser.Elo, Is.EqualTo(110));
+            });
+        }
 
-    [Test]
-    
-    [TearDown]
-    public void Cleanup()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Execute("DELETE FROM users WHERE username LIKE 'testuser%'");
+        [Test]
+        public void ValidateCredentials_ValidUser_ReturnsTrue()
+        {
+            // Arrange
+            var user = new User
+            {
+                Username = "test_user3",
+                Password = "test123",
+                Coins = 20,
+                Elo = 100
+            };
+            _repository.Add(user);
+
+            // Act
+            var isValid = _repository.ValidateCredentials("test_user3", "test123");
+
+            // Assert
+            Assert.That(isValid, Is.True);
+        }
+
+        [Test]
+        public void ValidateCredentials_InvalidPassword_ReturnsFalse()
+        {
+            // Arrange
+            var user = new User
+            {
+                Username = "test_user4",
+                Password = "test123",
+                Coins = 20,
+                Elo = 100
+            };
+            _repository.Add(user);
+
+            // Act
+            var isValid = _repository.ValidateCredentials("test_user4", "wrong_password");
+
+            // Assert
+            Assert.That(isValid, Is.False);
+        }
+
+        [Test]
+        public void GetAllUsers_ReturnsAllUsers()
+        {
+            // Arrange
+            var users = new[]
+            {
+                new User { Username = "test_user5", Password = "test123", Coins = 20, Elo = 100 },
+                new User { Username = "test_user6", Password = "test123", Coins = 20, Elo = 110 }
+            };
+
+            foreach (var user in users)
+            {
+                _repository.Add(user);
+            }
+
+            // Act
+            var allUsers = _repository.GetAllUsers().ToList();
+
+            // Assert
+            Assert.That(allUsers.Count(u => u.Username.StartsWith("test_")), Is.EqualTo(2));
+            Assert.That(allUsers.First(u => u.Username == "test_user6").Elo, Is.EqualTo(110));
+        }
+
+        [Test]
+        public void UserProfile_CreateAndRetrieve_WorksCorrectly()
+        {
+            // Arrange
+            var user = new User
+            {
+                Username = "test_user7",
+                Password = "test123",
+                Coins = 20,
+                Elo = 100
+            };
+            _repository.Add(user);
+            var userId = _repository.GetByUsername(user.Username).Id;
+
+            var profile = new UserProfile
+            {
+                UserId = userId,
+                Name = "Test Name",
+                Bio = "Test Bio",
+                Image = "test.jpg"
+            };
+
+            // Act
+            _repository.UpdateProfile(profile);
+            var retrievedProfile = _repository.GetUserProfile(userId);
+
+            // Assert
+            Assert.That(retrievedProfile, Is.Not.Null);
+            Assert.Multiple(() =>
+            {
+                Assert.That(retrievedProfile.Name, Is.EqualTo("Test Name"));
+                Assert.That(retrievedProfile.Bio, Is.EqualTo("Test Bio"));
+                Assert.That(retrievedProfile.Image, Is.EqualTo("test.jpg"));
+            });
+        }
+
+        [TearDown]
+        public void Cleanup()
+        {
+            using var conn = new NpgsqlConnection(_connectionString);
+            conn.Open();
+            using var transaction = conn.BeginTransaction();
+
+            try
+            {
+                using (var cmd = new NpgsqlCommand(
+                    @"DELETE FROM user_profiles WHERE user_id IN (SELECT id FROM users WHERE username LIKE 'test_%');
+                      DELETE FROM users WHERE username LIKE 'test_%'",
+                    conn, transaction))
+                {
+                    cmd.ExecuteNonQuery();
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
     }
 }

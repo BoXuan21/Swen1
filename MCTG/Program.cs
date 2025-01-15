@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using Npgsql;
 
 namespace MCTG
@@ -9,11 +10,16 @@ namespace MCTG
         {
             string connectionString = "Host=localhost;Database=MCTG;Username=postgres;Password=postgres;Include Error Detail=true;";
             string jwtSecretKey = "your-secret-key-at-least-16-chars";
-   
+
             try
             {
+                // Resolve SQL folder path
+                string projectRootPath = AppDomain.CurrentDomain.BaseDirectory;
+                string sqlFolderPath = Path.Combine(projectRootPath, "../../../SQL"); // Navigate up to the project root
+                Console.WriteLine($"SQL folder path resolved to: {sqlFolderPath}");
+
                 // Initialize database
-                var dbInitializer = new DatabaseInitializer(connectionString);
+                var dbInitializer = new DatabaseInitializer(connectionString, sqlFolderPath);
                 dbInitializer.InitializeDatabase();
                 Console.WriteLine("Database initialized successfully");
 
