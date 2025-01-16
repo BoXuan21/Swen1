@@ -1,10 +1,8 @@
-﻿using System.Text;
-using System.Text.Json;
-using Microsoft.AspNetCore.Http;
+﻿using System.Text.Json;
 using Moq;
 using NUnit.Framework;
 
-namespace MCTG
+namespace MCTG.Tests
 {
     [TestFixture]
     public class PackageHandlerTests
@@ -41,33 +39,31 @@ namespace MCTG
                 connectionString: "mock_connection_string"
             );
         }
-        
+
         [Test]
         public async Task HandleBuyPackageAsync_NotEnoughCoins_ReturnsForbidden()
         {
             // Arrange
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "testuser";
 
             _userRepositoryMock.Setup(r => r.GetByUsername("testuser"))
                 .Returns(new User { Id = 1, Username = "testuser", Coins = 3 });
 
-            var stream = new MemoryStream();
-
             // Act
-            await _server.HandleBuyPackageAsync(stream, "", context);
+            await _server.HandleBuyPackageAsync(context);
 
             // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
+            Assert.That(context.Response.StatusCode, Is.EqualTo(403));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("Forbidden"));
+            Assert.That(context.Response.Body, Is.EqualTo("Not enough coins"));
         }
 
         [Test]
         public async Task HandleBuyPackageAsync_NoPackagesAvailable_ReturnsNotFound()
         {
             // Arrange
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "testuser";
 
             _userRepositoryMock.Setup(r => r.GetByUsername("testuser"))
@@ -76,22 +72,20 @@ namespace MCTG
             _packageRepositoryMock.Setup(r => r.GetAvailablePackage())
                 .Returns((Package)null);
 
-            var stream = new MemoryStream();
-
             // Act
-            await _server.HandleBuyPackageAsync(stream, "", context);
+            await _server.HandleBuyPackageAsync(context);
 
             // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 404 Not Found"));
+            Assert.That(context.Response.StatusCode, Is.EqualTo(404));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("Not Found"));
+            Assert.That(context.Response.Body, Is.EqualTo("No packages available"));
         }
 
         [Test]
         public async Task HandleBuyPackageAsync_SuccessfulPurchase_ReturnsOk()
         {
             // Arrange
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "testuser";
             var user = new User { Id = 1, Username = "testuser", Coins = 10 };
             var cards = new List<Card> { new Card { Id = 1, Name = "TestCard" } };
@@ -102,55 +96,53 @@ namespace MCTG
             _packageRepositoryMock.Setup(r => r.GetAvailablePackage())
                 .Returns(package);
 
-            var stream = new MemoryStream();
-
             // Act
-            await _server.HandleBuyPackageAsync(stream, "", context);
+            await _server.HandleBuyPackageAsync(context);
 
             // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
+            Assert.That(context.Response.StatusCode, Is.EqualTo(200));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("OK"));
             _packageRepositoryMock.Verify(r => r.MarkPackageAsSold(package.Id, user.Id), Times.Once);
+            
+            var responseCards = JsonSerializer.Deserialize<List<Card>>(context.Response.Body);
+            Assert.That(responseCards, Has.Count.EqualTo(1));
+            Assert.That(responseCards[0].Name, Is.EqualTo("TestCard"));
         }
 
         [Test]
         public async Task HandleCreatePackageAsync_NonAdmin_ReturnsForbidden()
         {
             // Arrange
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "normaluser";
-            var stream = new MemoryStream();
 
             // Act
-            await _server.HandleCreatePackageAsync(stream, "", context);
+            await _server.HandleCreatePackageAsync(context);
 
             // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
+            Assert.That(context.Response.StatusCode, Is.EqualTo(403));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("Forbidden"));
+            Assert.That(context.Response.Body, Is.EqualTo("Only admin can create packages"));
         }
-        
+
         [Test]
         public async Task HandleCreatePackageAsync_ValidPackage_ReturnsCreated()
         {
             // Arrange
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "admin";
             var cards = new[]
             {
                 new { Id = "845f0dc7-37d0-426e-994e-43fc3ac83c08", Name = "WaterGoblin", Damage = 10 }
             };
-
-            var stream = new MemoryStream();
+            context.Request.Body = JsonSerializer.Serialize(cards);
 
             // Act
-            await _server.HandleCreatePackageAsync(stream, JsonSerializer.Serialize(cards), context);
+            await _server.HandleCreatePackageAsync(context);
 
             // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 201 Created"));
+            Assert.That(context.Response.StatusCode, Is.EqualTo(201));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("Created"));
             _packageRepositoryMock.Verify(r => r.CreatePackage(It.Is<List<Card>>(
                 cardList => cardList.Count == 1 && 
                            cardList[0].Name == "WaterGoblin" && 
@@ -158,7 +150,6 @@ namespace MCTG
                 Times.Once);
         }
 
-        
         [TearDown]
         public void Teardown()
         {

@@ -1,27 +1,19 @@
-﻿using System;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-
-namespace MCTG
+﻿namespace MCTG
 {
     public class JwtMiddleware
     {
-        private readonly RequestDelegate _next;
         private readonly IJwtService _jwtService;
 
-        public JwtMiddleware(RequestDelegate next, IJwtService jwtService)
+        public JwtMiddleware(IJwtService jwtService)
         {
-            _next = next;
             _jwtService = jwtService;
         }
 
-        public async Task Invoke(HttpContext context)
+        public bool Invoke(CustomHttpContext context)
         {
-            if (context.Request.Headers.TryGetValue("Authorization", out var authorizationHeader))
+            if (context.Request.TryGetHeader("Authorization", out var authorizationHeader))
             {
-                var token = authorizationHeader.FirstOrDefault()?.Split(" ").Last();
+                var token = authorizationHeader?.Split(" ").Last();
                 Console.WriteLine($"Processing token: {token}");
 
                 if (token != null)
@@ -43,25 +35,24 @@ namespace MCTG
                     {
                         context.Items["Username"] = username;
                         Console.WriteLine($"Username {username} attached to context");
+                        return true;
                     }
                     else
                     {
                         Console.WriteLine("Token validation failed");
                         context.Response.StatusCode = 401;
-                        await context.Response.WriteAsync("Invalid token");
-                        return;
+                        context.Response.StatusDescription = "Unauthorized";
+                        context.Response.Body = "Invalid token";
+                        return false;
                     }
                 }
             }
-            else
-            {
-                Console.WriteLine("No Authorization header found");
-            }
-
-            if (_next != null)
-            {
-                await _next(context);
-            }
+            
+            Console.WriteLine("No Authorization header found");
+            context.Response.StatusCode = 401;
+            context.Response.StatusDescription = "Unauthorized";
+            context.Response.Body = "Authorization header missing";
+            return false;
         }
     }
 }

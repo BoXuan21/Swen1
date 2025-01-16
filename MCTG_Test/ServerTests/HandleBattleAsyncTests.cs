@@ -1,7 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+﻿using System.Text.Json;
 using Moq;
 using NUnit.Framework;
 
@@ -10,12 +7,13 @@ namespace MCTG.Tests
     [TestFixture]
     public class HandleBattleAsyncTests
     {
-        private readonly Mock<IUserRepository> _userRepositoryMock;
-        private readonly Mock<ICardRepository> _cardRepositoryMock;
-        private readonly Mock<IBattleRepository> _battleRepositoryMock;
-        private readonly TcpServer _server;
+        private Mock<IUserRepository> _userRepositoryMock;
+        private Mock<ICardRepository> _cardRepositoryMock;
+        private Mock<IBattleRepository> _battleRepositoryMock;
+        private TcpServer _server;
 
-        public HandleBattleAsyncTests()
+        [SetUp]
+        public void Setup()
         {
             _userRepositoryMock = new Mock<IUserRepository>();
             _cardRepositoryMock = new Mock<ICardRepository>();
@@ -39,14 +37,12 @@ namespace MCTG.Tests
             _cardRepositoryMock.Setup(repo => repo.GetUserDeck(user1.Id)).Returns(deck1);
             _cardRepositoryMock.Setup(repo => repo.GetUserDeck(user2.Id)).Returns(deck2);
 
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "user1";
-
-            using var memoryStream = new MemoryStream();
-            var body = System.Text.Json.JsonSerializer.Serialize(battleRequest);
+            context.Request.Body = JsonSerializer.Serialize(battleRequest);
 
             // Act
-            await _server.HandleBattleAsync(memoryStream, context, body);
+            await _server.HandleBattleAsync(context);
 
             // Assert
             _battleRepositoryMock.Verify(repo => 
@@ -55,13 +51,9 @@ namespace MCTG.Tests
                     history.Player2Id == user2.Id &&
                     history.BattleLog != null)), Times.Once);
 
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 200 OK", response);
-            StringAssert.Contains("Content-Type: application/json", response);
-            StringAssert.Contains("\"Winner\":", response);
+            Assert.That(context.Response.StatusCode, Is.EqualTo(200));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("OK"));
+            Assert.That(context.Response.Body, Does.Contain("Winner"));
         }
         
         [Test]
@@ -77,22 +69,37 @@ namespace MCTG.Tests
             _userRepositoryMock.Setup(repo => repo.GetByUsername("user2")).Returns(user2);
             _cardRepositoryMock.Setup(repo => repo.GetUserDeck(user1.Id)).Returns(deck1);
 
-            var context = new DefaultHttpContext();
+            var context = new CustomHttpContext();
             context.Items["Username"] = "user1";
-
-            using var memoryStream = new MemoryStream();
-            var body = System.Text.Json.JsonSerializer.Serialize(battleRequest);
+            context.Request.Body = JsonSerializer.Serialize(battleRequest);
 
             // Act
-            await _server.HandleBattleAsync(memoryStream, context, body);
+            await _server.HandleBattleAsync(context);
 
             // Assert
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 400 Bad Request", response);
-            StringAssert.Contains("Both users must have at least 4 cards in their deck", response);
+            Assert.That(context.Response.StatusCode, Is.EqualTo(400));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("Bad Request"));
+            Assert.That(context.Response.Body, Is.EqualTo("Both users must have at least 4 cards in their deck"));
+        }
+
+        [Test]
+        public async Task UserNotFound_ReturnsNotFound()
+        {
+            // Arrange
+            var battleRequest = new BattleRequest { OpponentUsername = "user2" };
+            _userRepositoryMock.Setup(repo => repo.GetByUsername("user1")).Returns((User)null);
+
+            var context = new CustomHttpContext();
+            context.Items["Username"] = "user1";
+            context.Request.Body = JsonSerializer.Serialize(battleRequest);
+
+            // Act
+            await _server.HandleBattleAsync(context);
+
+            // Assert
+            Assert.That(context.Response.StatusCode, Is.EqualTo(404));
+            Assert.That(context.Response.StatusDescription, Is.EqualTo("Not Found"));
+            Assert.That(context.Response.Body, Is.EqualTo("User not found"));
         }
     }
 }

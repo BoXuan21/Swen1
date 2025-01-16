@@ -2,8 +2,6 @@
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
-using Npgsql;
 
 namespace MCTG
 {
@@ -29,7 +27,7 @@ namespace MCTG
             _userRepository = userRepository;
             _cardRepository = cardRepository;
             _jwtService = jwtService;
-            _jwtMiddleware = new JwtMiddleware(null, jwtService);
+            _jwtMiddleware = new JwtMiddleware(jwtService);
             _packageRepository = packageRepository;
             _battleRepository = battleRepository;
             _tradeRepository = tradeRepository;
@@ -49,7 +47,7 @@ namespace MCTG
             }
         }
 
-        private async void HandleClient(object obj)
+        public async void HandleClient(object obj)
         {
             TcpClient client = (TcpClient)obj;
             using NetworkStream networkStream = client.GetStream();
@@ -60,12 +58,14 @@ namespace MCTG
                 using var ms = new MemoryStream();
         
                 int bytesRead = await networkStream.ReadAsync(buffer, 0, buffer.Length);
-                if (bytesRead == 0) return;
-        
-                string initialRequest = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                Console.WriteLine("Received request:");
-                Console.WriteLine(initialRequest);
+                if (bytesRead == 0)
+                {
+                    await HttpUtils.SendErrorResponseAsync(networkStream, 400, "Invalid request format");
+                    return;
+                }
 
+                string initialRequest = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                
                 var contentLengthMatch = System.Text.RegularExpressions.Regex.Match(initialRequest, @"Content-Length: (\d+)");
                 int contentLength = 0;
                 if (contentLengthMatch.Success)
@@ -74,42 +74,42 @@ namespace MCTG
                 }
 
                 ms.Write(buffer, 0, bytesRead);
-                int totalBytesRead = bytesRead;
 
                 int headerEndPosition = initialRequest.IndexOf("\r\n\r\n");
                 if (headerEndPosition > 0 && contentLength > 0)
                 {
-                    int remainingBytes = contentLength - (totalBytesRead - headerEndPosition - 4);
+                    int remainingBytes = contentLength - (bytesRead - headerEndPosition - 4);
                     while (remainingBytes > 0)
                     {
                         bytesRead = await networkStream.ReadAsync(buffer, 0, Math.Min(buffer.Length, remainingBytes));
                         if (bytesRead == 0) break;
                         ms.Write(buffer, 0, bytesRead);
                         remainingBytes -= bytesRead;
-                        totalBytesRead += bytesRead;
                     }
                 }
 
                 ms.Position = 0;
                 string fullRequest = Encoding.UTF8.GetString(ms.ToArray());
                 string[] requestLines = fullRequest.Split("\r\n");
-        
-                string[] requestLine = requestLines[0].Split(' ');
-                if (requestLine.Length < 2)
+
+                if (requestLines.Length < 1)
                 {
-                    await SendResponseAsync(networkStream, "HTTP/1.1 400 Bad Request", "Invalid request format");
+                    await HttpUtils.SendErrorResponseAsync(networkStream, 400, "Invalid request format");
                     return;
                 }
 
-                string method = requestLine[0];
-                string path = requestLine[1];
+                string[] requestLine = requestLines[0].Split(' ');
+                if (requestLine.Length < 2)
+                {
+                    await HttpUtils.SendErrorResponseAsync(networkStream, 400, "Invalid request format");
+                    return;
+                }
 
-                Console.WriteLine($"Method: {method}, Path: {path}");
+                var context = new CustomHttpContext();
+                context.Request.Method = requestLine[0];
+                context.Request.Path = requestLine[1];
 
-                var context = new DefaultHttpContext();
-                context.Request.Method = method;
-                context.Request.Path = path;
-
+                // Find where headers end and body begins
                 int i;
                 for (i = 1; i < requestLines.Length; i++)
                 {
@@ -123,104 +123,139 @@ namespace MCTG
                     }
                 }
 
-                string body = "";
+                // Parse body
                 if (i < requestLines.Length - 1)
                 {
-                    body = string.Join("\r\n", requestLines.Skip(i + 1));
+                    context.Request.Body = HttpUtils.ParseRequestBody(requestLines, i);
                 }
-                Console.WriteLine($"Body: {body}");
 
-                context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(body));
-                await _jwtMiddleware.Invoke(context);
+                Console.WriteLine($"Method: {context.Request.Method}, Path: {context.Request.Path}");
+                Console.WriteLine($"Body: {context.Request.Body}");
 
-                using var responseStream = new MemoryStream();
+                // Skip auth for registration and login
+                bool requiresAuth = !(context.Request.Method == "POST" && 
+                    (context.Request.Path == "/users" || context.Request.Path == "/sessions"));
 
-                try
+                if (requiresAuth && !_jwtMiddleware.Invoke(context))
                 {
-                    switch (method + " " + path.Split('?')[0]) 
-                    {
-                        case "POST /users":
-                            await HandleRegistrationAsync(responseStream, body);
-                            break;
-                        case "POST /sessions":
-                            await HandleLoginAsync(responseStream, body);
-                            break;
-                        case "POST /transactions/packages":
-                            await HandleBuyPackageAsync(responseStream, body, context);
-                            break;
-                        case "POST /packages":
-                            await HandleCreatePackageAsync(responseStream, body, context);
-                            break;
-                        case "GET /cards":
-                            await HandleGetCardsAsync(responseStream, context);
-                            break;
-                        case "GET /deck":
-                            await HandleGetDeckAsync(responseStream, context);
-                            break;
-                        case "PUT /deck":
-                            await HandleConfigureDeckAsync(responseStream, body, context);
-                            break;
-                        case "POST /battles":
-                            await HandleBattleAsync(responseStream, context, body);
-                            break;
-                        case "GET /tradings":
-                            await HandleGetTradingsAsync(responseStream);
-                            break;
-                        case "POST /tradings":
-                            await HandleCreateTradeAsync(responseStream, body, context);
-                            break;
-                        case "GET /stats":
-                            await HandleGetStatsAsync(responseStream, context);
-                            break;
-                        case "GET /scoreboard":
-                            await HandleGetScoreboardAsync(responseStream);
-                            break;
-                        case var tradingPath when method == "POST" && path.StartsWith("/tradings/"):
-                            await HandleExecuteTradeAsync(responseStream, path, body, context);
-                            break;
-                        case var tradePath when method == "DELETE" && path.StartsWith("/tradings/"):
-                            await HandleDeleteTradeAsync(responseStream, path, context);
-                            break;
-                        case var profilePath when path.StartsWith("/users/") && method == "GET":
-                            await HandleGetProfileAsync(responseStream, path.Split('/')[2], context);
-                            break;
-                        case var profilePath when path.StartsWith("/users/") && method == "PUT":
-                            await HandleUpdateProfileAsync(responseStream, path.Split('/')[2], body, context);
-                            break;
-                        default:
-                            await SendResponseAsync(responseStream, "HTTP/1.1 404 Not Found", "Unknown endpoint");
-                            break;
-                    }
+                    await HttpUtils.SendResponseAsync(networkStream, context.Response.Body);
+                    return;
+                }
 
-                    responseStream.Position = 0;
-                    await responseStream.CopyToAsync(networkStream);
-                    await networkStream.FlushAsync();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error handling request: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                    await SendResponseAsync(networkStream, "HTTP/1.1 500 Internal Server Error", 
-                        $"Internal server error: {ex.Message}");
-                }
+                await HandleRequestAsync(context);
+                await HttpUtils.SendResponseAsync(networkStream, context.Response.Body);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Fatal error: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                try
-                {
-                    await SendResponseAsync(networkStream, "HTTP/1.1 500 Internal Server Error", 
-                        "A fatal error occurred");
-                }
-                catch
-                {
-                    // Ignore any errors in sending error response
-                }
+                Console.WriteLine($"Error handling request: {ex}");
+                await HttpUtils.SendErrorResponseAsync(networkStream, 500, "An error occurred processing your request");
             }
             finally
             {
                 client.Close();
+            }
+        }
+
+        private async Task HandleRequestAsync(CustomHttpContext context)
+        {
+            try
+            {
+                string path = context.Request.Path.Split('?')[0];
+                string method = context.Request.Method;
+
+                switch (method + " " + path)
+                {
+                    case "POST /users":
+                        await HandleRegistrationAsync(context);
+                        break;
+                    case "POST /sessions":
+                        await HandleLoginAsync(context);
+                        break;
+                    case "POST /packages":
+                        await HandleCreatePackageAsync(context);
+                        break;
+                    case "POST /transactions/packages":
+                        await HandleBuyPackageAsync(context);
+                        break;
+                    case "GET /cards":
+                        await HandleGetCardsAsync(context);
+                        break;
+                    case "GET /deck":
+                        await HandleGetDeckAsync(context);
+                        break;
+                    case "PUT /deck":
+                        await HandleConfigureDeckAsync(context);
+                        break;
+                    case "POST /battles":
+                        await HandleBattleAsync(context);
+                        break;
+                    case "GET /stats":
+                        await HandleGetStatsAsync(context);
+                        break;
+                    case "GET /scoreboard":
+                        await HandleGetScoreboardAsync(context);
+                        break;
+                    case "GET /tradings":
+                        await HandleGetTradingsAsync(context);
+                        break;
+                    case "POST /tradings":
+                        await HandleCreateTradeAsync(context);
+                        break;
+                    default:
+                        await HandleSpecialEndpoints(context, method, path);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = $"An error occurred: {ex.Message}";
+            }
+        }
+
+        private async Task HandleSpecialEndpoints(CustomHttpContext context, string method, string path)
+        {
+            if (path.StartsWith("/tradings/"))
+            {
+                string tradeId = path.Split('/')[2];
+                switch (method)
+                {
+                    case "POST":
+                        await HandleExecuteTradeAsync(context);
+                        break;
+                    case "DELETE":
+                        await HandleDeleteTradeAsync(context);
+                        break;
+                    default:
+                        context.Response.StatusCode = 405;
+                        context.Response.StatusDescription = "Method Not Allowed";
+                        context.Response.Body = "Method not allowed for trading endpoint";
+                        break;
+                }
+            }
+            else if (path.StartsWith("/users/"))
+            {
+                switch (method)
+                {
+                    case "GET":
+                        await HandleGetProfileAsync(context);
+                        break;
+                    case "PUT":
+                        await HandleUpdateProfileAsync(context);
+                        break;
+                    default:
+                        context.Response.StatusCode = 405;
+                        context.Response.StatusDescription = "Method Not Allowed";
+                        context.Response.Body = "Method not allowed for user endpoint";
+                        break;
+                }
+            }
+            else
+            {
+                context.Response.StatusCode = 404;
+                context.Response.StatusDescription = "Not Found";
+                context.Response.Body = "Endpoint not found";
             }
         }
     }

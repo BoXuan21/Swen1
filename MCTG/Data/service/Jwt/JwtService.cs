@@ -1,25 +1,20 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
-
-namespace MCTG
-{
+﻿namespace MCTG;
     public class JwtService : IJwtService
     {
-        private readonly string _secretKey;  // Fixed the asterisk to underscore
+        private readonly string _secretKey;
 
         public JwtService(string secretKey)
         {
-            if (secretKey.Length < 16)
+            if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 16)
             {
                 throw new ArgumentException("Secret key must be at least 16 characters long.");
             }
-            _secretKey = secretKey;  // Fixed the asterisk to underscore
+            _secretKey = secretKey;
         }
 
         public string GenerateToken(string username)
         {
+            // For simplicity, we'll use the basic token format as specified
             return $"{username}-mtcgToken";
         }
 
@@ -33,21 +28,9 @@ namespace MCTG
                     return token.Replace("-mtcgToken", "");
                 }
 
-                // Fallback to JWT validation if needed
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.ASCII.GetBytes(_secretKey);
-                
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
-
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                return jwtToken.Claims.First(x => x.Type == ClaimTypes.Name).Value;
+                // For a more secure implementation, you could add additional validation here
+                // For example, checking token expiration, signature validation, etc.
+                return null;
             }
             catch (Exception ex)
             {
@@ -56,4 +39,3 @@ namespace MCTG
             }
         }
     }
-}

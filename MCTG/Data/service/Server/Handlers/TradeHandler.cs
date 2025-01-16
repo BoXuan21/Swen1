@@ -1,215 +1,237 @@
 ﻿using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 
 namespace MCTG
 {
     public partial class TcpServer
     {
-        public async Task HandleGetTradingsAsync(Stream stream)
-{
-    try
-    {
-        var trades = _tradeRepository.GetAllTrades();
-        var response = JsonSerializer.Serialize(trades, new JsonSerializerOptions { WriteIndented = true });
-        await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error getting trades: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
-        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
-            "An error occurred while retrieving trades");
-    }
-}
-
-public async Task HandleCreateTradeAsync(Stream stream, string body, HttpContext context)
-{
-    try
-    {
-        var username = context.Items["Username"] as string;
-        Console.WriteLine($"Creating trade for user: {username}");
-
-        if (string.IsNullOrEmpty(username))
+        public async Task HandleGetTradingsAsync(CustomHttpContext context)
         {
-            Console.WriteLine("No username found in context");
-            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
-            return;
-        }
-
-        var user = _userRepository.GetByUsername(username);
-        if (user == null)
-        {
-            Console.WriteLine($"User not found: {username}");
-            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-            return;
-        }
-
-        var trade = JsonSerializer.Deserialize<Trade>(body, new JsonSerializerOptions 
-        { 
-            PropertyNameCaseInsensitive = true 
-        });
-        trade.UserId = user.Id;
-
-        try
-        {
-            _tradeRepository.CreateTrade(trade);
-            Console.WriteLine($"Trade created successfully for user {username}");
-            await SendResponseAsync(stream, "HTTP/1.1 201 Created", "Trade created successfully");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error creating trade: {ex.Message}");
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", ex.Message);
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error in HandleCreateTradeAsync: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
-        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
-            "An error occurred while creating the trade");
-    }
-}
-
-public async Task HandleExecuteTradeAsync(Stream stream, string path, string body, HttpContext context)
-{
-    try
-    {
-        var username = context.Items["Username"] as string;
-        Console.WriteLine($"Execute trade request from user: {username}");
-
-        if (string.IsNullOrEmpty(username))
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
-            return;
-        }
-
-        var pathParts = path.Split('/');
-        if (pathParts.Length < 3 || !int.TryParse(pathParts[2], out int tradeId))
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
-            return;
-        }
-
-        // Parse the offered card ID from the body
-        Console.WriteLine($"Parsing card ID from body: {body}");
-        int offeredCardId;
-        try
-        {
-            // Try parsing directly first
-            if (int.TryParse(body.Trim(), out offeredCardId))
+            try
             {
-                Console.WriteLine($"Successfully parsed card ID: {offeredCardId}");
+                var trades = _tradeRepository.GetAllTrades();
+                context.Response.StatusCode = 200;
+                context.Response.StatusDescription = "OK";
+                context.Response.Body = JsonSerializer.Serialize(trades, new JsonSerializerOptions { WriteIndented = true });
             }
-            else
+            catch (Exception ex)
             {
-                // If direct parsing fails, try JSON deserialization
-                offeredCardId = JsonSerializer.Deserialize<int>(body);
-                Console.WriteLine($"Successfully deserialized card ID: {offeredCardId}");
+                Console.WriteLine($"Error getting trades: {ex.Message}");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while retrieving trades";
             }
         }
-        catch (Exception ex)
+
+        public async Task HandleCreateTradeAsync(CustomHttpContext context)
         {
-            Console.WriteLine($"Error parsing card ID: {ex.Message}");
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid card ID format");
-            return;
+            try
+            {
+                var username = context.Items["Username"]?.ToString();
+                Console.WriteLine($"Creating trade for user: {username}");
+
+                if (string.IsNullOrEmpty(username))
+                {
+                    Console.WriteLine("No username found in context");
+                    context.Response.StatusCode = 401;
+                    context.Response.StatusDescription = "Unauthorized";
+                    context.Response.Body = "Authentication required";
+                    return;
+                }
+
+                var user = _userRepository.GetByUsername(username);
+                if (user == null)
+                {
+                    Console.WriteLine($"User not found: {username}");
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "User not found";
+                    return;
+                }
+
+                var trade = JsonSerializer.Deserialize<Trade>(context.Request.Body, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+                trade.UserId = user.Id;
+
+                try
+                {
+                    _tradeRepository.CreateTrade(trade);
+                    Console.WriteLine($"Trade created successfully for user {username}");
+                    context.Response.StatusCode = 201;
+                    context.Response.StatusDescription = "Created";
+                    context.Response.Body = "Trade created successfully";
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error creating trade: {ex.Message}");
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = ex.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleCreateTradeAsync: {ex.Message}");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while creating the trade";
+            }
         }
 
-        var user = _userRepository.GetByUsername(username);
-        if (user == null)
+        public async Task HandleExecuteTradeAsync(CustomHttpContext context)
         {
-            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-            return;
+            try
+            {
+                var username = context.Items["Username"]?.ToString();
+                Console.WriteLine($"Execute trade request from user: {username}");
+
+                if (string.IsNullOrEmpty(username))
+                {
+                    context.Response.StatusCode = 401;
+                    context.Response.StatusDescription = "Unauthorized";
+                    context.Response.Body = "Authentication required";
+                    return;
+                }
+
+                var pathParts = context.Request.Path.Split('/');
+                if (pathParts.Length < 3 || !int.TryParse(pathParts[2], out int tradeId))
+                {
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = "Invalid trading ID format";
+                    return;
+                }
+
+                // Parse the offered card ID from the body
+                Console.WriteLine($"Parsing card ID from body: {context.Request.Body}");
+                int offeredCardId;
+                try
+                {
+                    offeredCardId = int.TryParse(context.Request.Body.Trim(), out int parsed) 
+                        ? parsed 
+                        : JsonSerializer.Deserialize<int>(context.Request.Body);
+                }
+                catch (Exception)
+                {
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = "Invalid card ID format";
+                    return;
+                }
+
+                var user = _userRepository.GetByUsername(username);
+                if (user == null)
+                {
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "User not found";
+                    return;
+                }
+
+                var trade = _tradeRepository.GetTradeById(tradeId);
+                if (trade == null)
+                {
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "Trade not found";
+                    return;
+                }
+
+                if (trade.UserId == user.Id)
+                {
+                    context.Response.StatusCode = 403;
+                    context.Response.StatusDescription = "Forbidden";
+                    context.Response.Body = "Cannot trade with yourself";
+                    return;
+                }
+
+                if (_tradeRepository.ExecuteTrade(tradeId, offeredCardId, user.Id))
+                {
+                    context.Response.StatusCode = 200;
+                    context.Response.StatusDescription = "OK";
+                    context.Response.Body = "Trade executed successfully";
+                }
+                else
+                {
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = "Trade execution failed";
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing trade: {ex.Message}");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while executing the trade";
+            }
         }
 
-        var trade = _tradeRepository.GetTradeById(tradeId);
-        if (trade == null)
+        public async Task HandleDeleteTradeAsync(CustomHttpContext context)
         {
-            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
-            return;
-        }
+            try 
+            {
+                var username = context.Items["Username"]?.ToString();
+                Console.WriteLine($"Delete trade request from user: {username}");
 
-        if (trade.UserId == user.Id)
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot trade with yourself");
-            return;
-        }
+                if (string.IsNullOrEmpty(username))
+                {
+                    Console.WriteLine("No username found in context");
+                    context.Response.StatusCode = 401;
+                    context.Response.StatusDescription = "Unauthorized";
+                    context.Response.Body = "Authentication required";
+                    return;
+                }
 
-        Console.WriteLine($"Executing trade {tradeId} with card {offeredCardId} for user {username}");
-        if (_tradeRepository.ExecuteTrade(tradeId, offeredCardId, user.Id))
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade executed successfully");
-        }
-        else
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Trade execution failed");
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error executing trade: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
-        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
-            "An error occurred while executing the trade");
-    }
-}
+                var pathParts = context.Request.Path.Split('/');
+                if (pathParts.Length < 3 || !int.TryParse(pathParts[2], out int tradeId))
+                {
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = "Invalid trading ID format";
+                    return;
+                }
 
-public async Task HandleDeleteTradeAsync(Stream stream, string path, HttpContext context)
-{
-    try 
-    {
-        var username = context.Items["Username"] as string;
-        Console.WriteLine($"Delete trade request from user: {username}");
+                var user = _userRepository.GetByUsername(username);
+                if (user == null)
+                {
+                    Console.WriteLine($"User not found: {username}");
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "User not found";
+                    return;
+                }
 
-        if (string.IsNullOrEmpty(username))
-        {
-            Console.WriteLine("No username found in context");
-            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
-            return;
+                var trade = _tradeRepository.GetTradeById(tradeId);
+                if (trade == null)
+                {
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "Trade not found";
+                    return;
+                }
+
+                if (trade.UserId != user.Id)
+                {
+                    context.Response.StatusCode = 403;
+                    context.Response.StatusDescription = "Forbidden";
+                    context.Response.Body = "Cannot delete another user's trade";
+                    return;
+                }
+
+                _tradeRepository.DeleteTrade(tradeId);
+                context.Response.StatusCode = 200;
+                context.Response.StatusDescription = "OK";
+                context.Response.Body = "Trade deleted successfully";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in HandleDeleteTradeAsync: {ex.Message}");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "Failed to delete trade";
+            }
         }
-
-        var pathParts = path.Split('/');
-        if (pathParts.Length < 3)
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
-            return;
-        }
-
-        if (!int.TryParse(pathParts[2], out int tradeId))
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid trading ID format");
-            return;
-        }
-
-        var user = _userRepository.GetByUsername(username);
-        if (user == null)
-        {
-            Console.WriteLine($"User not found: {username}");
-            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
-            return;
-        }
-
-        var trade = _tradeRepository.GetTradeById(tradeId);
-        if (trade == null)
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "Trade not found");
-            return;
-        }
-
-        if (trade.UserId != user.Id)
-        {
-            await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Cannot delete another user's trade");
-            return;
-        }
-
-        _tradeRepository.DeleteTrade(tradeId);
-        await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Trade deleted successfully");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error in HandleDeleteTradeAsync: {ex.Message}");
-        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "Failed to delete trade");
-    }
-}
     }
 }

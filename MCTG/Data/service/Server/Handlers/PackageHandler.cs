@@ -1,23 +1,22 @@
 ﻿using System.Text.Json;
-using Microsoft.AspNetCore.Http;
-using Npgsql;
-
 
 namespace MCTG
 {
     public partial class TcpServer
     {
-        public async Task HandleBuyPackageAsync(Stream stream, string body, HttpContext context)
+        public async Task HandleBuyPackageAsync(CustomHttpContext context)
         {
             try
             {
-                var username = context.Items["Username"] as string;
+                var username = context.Items["Username"]?.ToString();
                 Console.WriteLine($"Attempting to buy package for user: {username}");
 
                 if (string.IsNullOrEmpty(username))
                 {
                     Console.WriteLine("Username is null or empty");
-                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+                    context.Response.StatusCode = 401;
+                    context.Response.StatusDescription = "Unauthorized";
+                    context.Response.Body = "Authentication required";
                     return;
                 }
 
@@ -25,21 +24,27 @@ namespace MCTG
                 if (user == null)
                 {
                     Console.WriteLine($"User not found in database for username: {username}");
-                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "User not found";
                     return;
                 }
 
                 Console.WriteLine($"User {username} has {user.Coins} coins");
                 if (user.Coins < 5)
                 {
-                    await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Not enough coins");
+                    context.Response.StatusCode = 403;
+                    context.Response.StatusDescription = "Forbidden";
+                    context.Response.Body = "Not enough coins";
                     return;
                 }
 
                 var package = _packageRepository.GetAvailablePackage();
                 if (package == null)
                 {
-                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "No packages available");
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "No packages available";
                     return;
                 }
 
@@ -50,86 +55,97 @@ namespace MCTG
                 // Mark package as sold and update card ownership
                 _packageRepository.MarkPackageAsSold(package.Id, user.Id);
 
-                Console.WriteLine($"Package {package.Id} successfully purchased by user {username}");
-                await SendResponseAsync(stream, "HTTP/1.1 200 OK", JsonSerializer.Serialize(package.Cards));
+                context.Response.StatusCode = 200;
+                context.Response.StatusDescription = "OK";
+                context.Response.Body = JsonSerializer.Serialize(package.Cards);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in HandleBuyPackageAsync: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
-                    "An error occurred while processing your request");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while processing your request";
             }
         }
-      public async Task HandleCreatePackageAsync(Stream stream, string body, HttpContext context)
-{
-    try
-    {
-        var username = context.Items["Username"] as string;
-        Console.WriteLine($"Attempting to create package by user: {username}");
 
-        if (string.IsNullOrEmpty(username))
+        public async Task HandleCreatePackageAsync(CustomHttpContext context)
         {
-            Console.WriteLine("Username is null or empty");
-            await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
-            return;
-        }
-
-        // Check if user is admin
-        if (username != "admin")
-        {
-            Console.WriteLine($"User {username} is not authorized to create packages");
-            await SendResponseAsync(stream, "HTTP/1.1 403 Forbidden", "Only admin can create packages");
-            return;
-        }
-
-        try
-        {
-            var options = new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            };
+                var username = context.Items["Username"]?.ToString();
+                Console.WriteLine($"Attempting to create package by user: {username}");
 
-            // First deserialize to dynamic structure to handle the GUID IDs
-            var jsonCards = JsonSerializer.Deserialize<List<JsonElement>>(body, options);
-            
-            if (jsonCards == null || jsonCards.Count == 0)
-            {
-                await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid card data");
-                return;
+                if (string.IsNullOrEmpty(username))
+                {
+                    Console.WriteLine("Username is null or empty");
+                    context.Response.StatusCode = 401;
+                    context.Response.StatusDescription = "Unauthorized";
+                    context.Response.Body = "Authentication required";
+                    return;
+                }
+
+                // Check if user is admin
+                if (username != "admin")
+                {
+                    Console.WriteLine($"User {username} is not authorized to create packages");
+                    context.Response.StatusCode = 403;
+                    context.Response.StatusDescription = "Forbidden";
+                    context.Response.Body = "Only admin can create packages";
+                    return;
+                }
+
+                try
+                {
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
+
+                    // First deserialize to dynamic structure to handle the GUID IDs
+                    var jsonCards = JsonSerializer.Deserialize<List<JsonElement>>(context.Request.Body, options);
+                    
+                    if (jsonCards == null || jsonCards.Count == 0)
+                    {
+                        context.Response.StatusCode = 400;
+                        context.Response.StatusDescription = "Bad Request";
+                        context.Response.Body = "Invalid card data";
+                        return;
+                    }
+
+                    // Convert the JSON format to our Card objects
+                    var cards = jsonCards.Select(jsonCard => new Card
+                    {
+                        Id = 0,  // We'll leave Id as 0 since it will be generated by the database
+                        Name = jsonCard.GetProperty("Name").GetString(),
+                        Damage = jsonCard.GetProperty("Damage").GetInt32()
+                    }).ToList();
+
+                    _packageRepository.CreatePackage(cards);
+                    
+                    context.Response.StatusCode = 201;
+                    context.Response.StatusDescription = "Created";
+                    context.Response.Body = "Package created successfully";
+                }
+                catch (JsonException)
+                {
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = "Invalid JSON format";
+                }
+                catch (Npgsql.PostgresException)
+                {
+                    context.Response.StatusCode = 500;
+                    context.Response.StatusDescription = "Internal Server Error";
+                    context.Response.Body = "Database error occurred";
+                }
             }
-
-            // Convert the JSON format to our Card objects
-            var cards = jsonCards.Select(jsonCard => new Card
+            catch (Exception ex)
             {
-                // We'll leave Id as 0 since it will be generated by the database
-                Id = 0,  
-                Name = jsonCard.GetProperty("Name").GetString(),
-                Damage = (int)jsonCard.GetProperty("Damage").GetInt32()
-            }).ToList();
-
-            _packageRepository.CreatePackage(cards);
-            Console.WriteLine($"Package created successfully with {cards.Count} cards");
-            await SendResponseAsync(stream, "HTTP/1.1 201 Created", "Package created successfully");
+                Console.WriteLine($"Error in HandleCreatePackageAsync: {ex.Message}");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while processing your request";
+            }
         }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"JSON parsing error: {ex.Message}");
-            await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Invalid JSON format");
-        }
-        catch (Npgsql.PostgresException ex)
-        {
-            Console.WriteLine($"Database error while creating package: {ex.Message}");
-            await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", "Database error occurred");
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error in HandleCreatePackageAsync: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
-        await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
-            "An error occurred while processing your request");
-    }
-}
     }
 }

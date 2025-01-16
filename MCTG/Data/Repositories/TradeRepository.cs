@@ -291,18 +291,17 @@ public class TradeRepository : ITradeRepository
         bool typeMatches = false;
         if (string.Equals(trade.RequiredType, "monster", StringComparison.OrdinalIgnoreCase))
         {
-            // These are considered monster types
+            // Monster
             var monsterTypes = new[] { "Goblin", "Dragon", "Wizard", "Ork", "Knight", "Kraken", "FireElves" };
             typeMatches = monsterTypes.Contains(offeredCard.CardType, StringComparer.OrdinalIgnoreCase);
         }
         else if (string.Equals(trade.RequiredType, "spell", StringComparison.OrdinalIgnoreCase))
         {
-            // These are considered spell types
+            //spell
             typeMatches = offeredCard.CardType.EndsWith("Spell", StringComparison.OrdinalIgnoreCase);
         }
         else
         {
-            // Direct type comparison for specific types
             typeMatches = string.Equals(offeredCard.CardType, trade.RequiredType, StringComparison.OrdinalIgnoreCase);
         }
 

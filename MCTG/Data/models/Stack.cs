@@ -35,15 +35,5 @@
                 }
             }
         }
-
-        public bool RemoveCard(Card card)
-        {
-            return Cards.Remove(card);
-        }
-
-        public void AddCard(Card card)
-        {
-            Cards.Add(card);
-        }
     }
 }

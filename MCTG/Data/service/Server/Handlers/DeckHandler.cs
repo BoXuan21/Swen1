@@ -1,24 +1,21 @@
 ﻿using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 
 namespace MCTG
 {
     public partial class TcpServer
     {
-        public async Task HandleGetDeckAsync(Stream stream, HttpContext context)
+        public async Task HandleGetDeckAsync(CustomHttpContext context)
         {
             try
             {
-                var username = context.Items["Username"] as string;
+                var username = context.GetUsername();
                 Console.WriteLine($"Getting deck for user: {username}");
-
-                Console.WriteLine($"Request path and query: {context.Request.Path}{context.Request.QueryString}");
 
                 if (string.IsNullOrEmpty(username))
                 {
                     Console.WriteLine("No username found in context");
-                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+                    context.Response.SetUnauthorized();
                     return;
                 }
 
@@ -26,19 +23,21 @@ namespace MCTG
                 if (user == null)
                 {
                     Console.WriteLine($"User not found for username: {username}");
-                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "User not found";
                     return;
                 }
 
                 var deck = _cardRepository.GetUserDeck(user.Id).ToList();
                 Console.WriteLine($"Found {deck.Count} cards in deck for user {username}");
 
-                var requestLines = context.Request.Path.Value?.Split('?');
-                var isPlainFormat = requestLines?.Length > 1 && requestLines[1].Contains("format=plain");
-                
+                var isPlainFormat = context.Request.Path.Contains("?format=plain");
                 Console.WriteLine($"Format is plain: {isPlainFormat}");
 
-                string response;
+                context.Response.StatusCode = 200;
+                context.Response.StatusDescription = "OK";
+
                 if (isPlainFormat)
                 {
                     var plainResponse = new StringBuilder();
@@ -47,45 +46,43 @@ namespace MCTG
                     {
                         plainResponse.AppendLine($"- {card.Name}: {card.Damage} damage");
                     }
-                    response = plainResponse.ToString();
-                    Console.WriteLine("Sending plain format response");
+                    context.Response.Body = plainResponse.ToString();
                 }
                 else
                 {
-                    response = JsonSerializer.Serialize(deck);
-                    Console.WriteLine("Sending JSON format response");
+                    context.Response.Body = JsonSerializer.Serialize(deck);
                 }
-
-                await SendResponseAsync(stream, "HTTP/1.1 200 OK", response);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error getting deck: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error", 
-                    "An error occurred while retrieving the deck");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while retrieving the deck";
             }
         }
 
-        public async Task HandleConfigureDeckAsync(Stream stream, string body, HttpContext context)
+        public async Task HandleConfigureDeckAsync(CustomHttpContext context)
         {
             try
             {
-                var username = context.Items["Username"] as string;
+                var username = context.GetUsername();
                 Console.WriteLine($"Configuring deck for user: {username}");
 
                 if (string.IsNullOrEmpty(username))
                 {
                     Console.WriteLine("No username found in context");
-                    await SendResponseAsync(stream, "HTTP/1.1 401 Unauthorized", "Authentication required");
+                    context.Response.SetUnauthorized();
                     return;
                 }
 
-                var cardIds = JsonSerializer.Deserialize<List<int>>(body); 
+                var cardIds = JsonSerializer.Deserialize<List<int>>(context.Request.Body);
 
                 if (cardIds == null || cardIds.Count != 4)
                 {
-                    await SendResponseAsync(stream, "HTTP/1.1 400 Bad Request", "Deck must contain exactly 4 cards");
+                    context.Response.StatusCode = 400;
+                    context.Response.StatusDescription = "Bad Request";
+                    context.Response.Body = "Deck must contain exactly 4 cards";
                     return;
                 }
 
@@ -93,19 +90,23 @@ namespace MCTG
                 if (user == null)
                 {
                     Console.WriteLine($"User not found for username: {username}");
-                    await SendResponseAsync(stream, "HTTP/1.1 404 Not Found", "User not found");
+                    context.Response.StatusCode = 404;
+                    context.Response.StatusDescription = "Not Found";
+                    context.Response.Body = "User not found";
                     return;
                 }
 
                 _cardRepository.UpdateDeck(user.Id, cardIds);
-                await SendResponseAsync(stream, "HTTP/1.1 200 OK", "Deck configured successfully");
+                context.Response.StatusCode = 200;
+                context.Response.StatusDescription = "OK";
+                context.Response.Body = "Deck configured successfully";
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error configuring deck: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                await SendResponseAsync(stream, "HTTP/1.1 500 Internal Server Error",
-                    "An error occurred while configuring the deck");
+                context.Response.StatusCode = 500;
+                context.Response.StatusDescription = "Internal Server Error";
+                context.Response.Body = "An error occurred while configuring the deck";
             }
         }
     }

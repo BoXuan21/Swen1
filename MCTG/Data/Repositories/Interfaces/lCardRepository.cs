@@ -5,7 +5,6 @@ namespace MCTG
     {
         int AddCard(Card card, int userId);
         IEnumerable<Card> GetUserCards(int userId);
-        Card GetCard(int cardId);
         IEnumerable<Card> GetUserDeck(int userId);
         void UpdateDeck(int userId, List<int> cardIds);
     }
