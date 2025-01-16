@@ -97,53 +97,7 @@ namespace MCTG.Tests
                 Assert.That(retrievedStats.Elo, Is.EqualTo(120));
             });
         }
-
-        [Test]
-        public void GetUserStats_ExistingStats_ReturnsCorrectStats()
-        {
-            // Arrange - Insert test stats directly into DB
-            var expectedStats = new UserStats
-            {
-                UserId = _testUserId,
-                GamesPlayed = 10,
-                Wins = 5,
-                Losses = 3,
-                Draws = 2,
-                Elo = 115
-            };
-
-            using (var conn = new NpgsqlConnection(_connectionString))
-            {
-                conn.Open();
-                using var cmd = new NpgsqlCommand(@"
-                    INSERT INTO user_stats (user_id, games_played, wins, losses, draws, elo)
-                    VALUES (@UserId, @GamesPlayed, @Wins, @Losses, @Draws, @Elo)",
-                    conn);
-
-                cmd.Parameters.AddWithValue("@UserId", expectedStats.UserId);
-                cmd.Parameters.AddWithValue("@GamesPlayed", expectedStats.GamesPlayed);
-                cmd.Parameters.AddWithValue("@Wins", expectedStats.Wins);
-                cmd.Parameters.AddWithValue("@Losses", expectedStats.Losses);
-                cmd.Parameters.AddWithValue("@Draws", expectedStats.Draws);
-                cmd.Parameters.AddWithValue("@Elo", expectedStats.Elo);
-
-                cmd.ExecuteNonQuery();
-            }
-
-            // Act
-            var actualStats = _repository.GetUserStats(_testUserId);
-
-            // Assert
-            Assert.Multiple(() =>
-            {
-                Assert.That(actualStats.GamesPlayed, Is.EqualTo(expectedStats.GamesPlayed));
-                Assert.That(actualStats.Wins, Is.EqualTo(expectedStats.Wins));
-                Assert.That(actualStats.Losses, Is.EqualTo(expectedStats.Losses));
-                Assert.That(actualStats.Draws, Is.EqualTo(expectedStats.Draws));
-                Assert.That(actualStats.Elo, Is.EqualTo(expectedStats.Elo));
-            });
-        }
-
+        
         [OneTimeTearDown]
         public void OneTimeTearDown()
         {

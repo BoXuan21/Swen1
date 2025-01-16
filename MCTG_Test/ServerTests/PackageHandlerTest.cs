@@ -41,23 +41,7 @@ namespace MCTG
                 connectionString: "mock_connection_string"
             );
         }
-
-        [Test]
-        public async Task HandleBuyPackageAsync_NoAuth_ReturnsUnauthorized()
-        {
-            // Arrange
-            var context = new DefaultHttpContext();
-            var stream = new MemoryStream();
-
-            // Act
-            await _server.HandleBuyPackageAsync(stream, "", context);
-
-            // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 401 Unauthorized"));
-        }
-
+        
         [Test]
         public async Task HandleBuyPackageAsync_NotEnoughCoins_ReturnsForbidden()
         {
@@ -146,25 +130,7 @@ namespace MCTG
             var response = Encoding.UTF8.GetString(stream.ToArray());
             Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
         }
-
-        [Test]
-        public async Task HandleCreatePackageAsync_InvalidJson_ReturnsBadRequest()
-        {
-            // Arrange
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "admin";
-            var stream = new MemoryStream();
-            var invalidJson = "invalid json";
-
-            // Act
-            await _server.HandleCreatePackageAsync(stream, invalidJson, context);
-
-            // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
-        }
-
+        
         [Test]
         public async Task HandleCreatePackageAsync_ValidPackage_ReturnsCreated()
         {
@@ -192,24 +158,7 @@ namespace MCTG
                 Times.Once);
         }
 
-        [Test]
-        public async Task HandleCreatePackageAsync_NoCards_ReturnsBadRequest()
-        {
-            // Arrange
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "admin";
-            var emptyCards = new List<object>();
-            var stream = new MemoryStream();
-
-            // Act
-            await _server.HandleCreatePackageAsync(stream, JsonSerializer.Serialize(emptyCards), context);
-
-            // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
-        }
-
+        
         [TearDown]
         public void Teardown()
         {

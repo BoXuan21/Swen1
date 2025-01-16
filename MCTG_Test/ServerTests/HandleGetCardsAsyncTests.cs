@@ -61,7 +61,30 @@ namespace MCTG.Tests
             Assert.AreEqual(1, responseBody[0].Id);
             Assert.AreEqual(2, responseBody[1].Id);
         }
-        
+
+        [Test]
+        public async Task UserNotFound_ReturnsNotFound()
+        {
+            // Arrange
+            _userRepositoryMock.Setup(repo => repo.GetByUsername("testuser")).Returns((User)null);
+
+            var context = new DefaultHttpContext();
+            context.Items["Username"] = "testuser";
+
+            using var memoryStream = new MemoryStream();
+
+            // Act
+            await _server.HandleGetCardsAsync(memoryStream, context);
+
+            // Assert
+            memoryStream.Position = 0;
+            using var streamReader = new StreamReader(memoryStream);
+            var response = await streamReader.ReadToEndAsync();
+            
+            StringAssert.Contains("HTTP/1.1 404 Not Found", response);
+            StringAssert.Contains("User not found", response);
+        }
+
         [Test]
         public async Task AuthenticationRequired_ReturnsUnauthorized()
         {

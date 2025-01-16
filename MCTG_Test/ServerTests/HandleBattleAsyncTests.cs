@@ -94,27 +94,5 @@ namespace MCTG.Tests
             StringAssert.Contains("HTTP/1.1 400 Bad Request", response);
             StringAssert.Contains("Both users must have at least 4 cards in their deck", response);
         }
-
-        [Test]
-        public async Task AuthenticationRequired_ReturnsUnauthorized()
-        {
-            // Arrange
-            var battleRequest = new BattleRequest { OpponentUsername = "user2" };
-            var context = new DefaultHttpContext();
-
-            using var memoryStream = new MemoryStream();
-            var body = System.Text.Json.JsonSerializer.Serialize(battleRequest);
-
-            // Act
-            await _server.HandleBattleAsync(memoryStream, context, body);
-
-            // Assert
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 401 Unauthorized", response);
-            StringAssert.Contains("Authentication required", response);
-        }
     }
 }

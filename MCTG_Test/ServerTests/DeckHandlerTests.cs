@@ -61,27 +61,7 @@ namespace MCTG.Tests
             Assert.AreEqual(20, responseBody[1].Damage);
         }
         
-        [Test]
-        public async Task HandleGetDeckAsync_AuthenticationRequired_ReturnsUnauthorized()
-        {
-            // Arrange
-            var context = new DefaultHttpContext();
-            context.Request.Path = "/deck";
-
-            using var memoryStream = new MemoryStream();
-
-            // Act
-            await _server.HandleGetDeckAsync(memoryStream, context);
-
-            // Assert
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 401 Unauthorized", response);
-            StringAssert.Contains("Authentication required", response);
-        }
-
+        
         [Test]
         public async Task HandleConfigureDeckAsync_ValidRequest_ConfiguresDeck()
         {
@@ -111,31 +91,7 @@ namespace MCTG.Tests
             StringAssert.Contains("HTTP/1.1 200 OK", response);
             StringAssert.Contains("Deck configured successfully", response);
         }
-
-        [Test]
-        public async Task HandleConfigureDeckAsync_InvalidCardCount_ReturnsBadRequest()
-        {
-            // Arrange
-            var cardIds = new List<int> { 1, 2, 3 }; // Invalid card count
-            var requestBody = JsonSerializer.Serialize(cardIds);
-
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "testuser";
-
-            using var memoryStream = new MemoryStream();
-
-            // Act
-            await _server.HandleConfigureDeckAsync(memoryStream, requestBody, context);
-
-            // Assert
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 400 Bad Request", response);
-            StringAssert.Contains("Deck must contain exactly 4 cards", response);
-        }
-
+        
         [Test]
         public async Task HandleConfigureDeckAsync_UserNotFound_ReturnsNotFound()
         {

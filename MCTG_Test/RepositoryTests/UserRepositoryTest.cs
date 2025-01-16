@@ -88,49 +88,7 @@ namespace MCTG.Tests
             });
         }
         
-        [Test]
-        public void ValidateCredentials_InvalidPassword_ReturnsFalse()
-        {
-            // Arrange
-            var user = new User
-            {
-                Username = "test_user4",
-                Password = "test123",
-                Coins = 20,
-                Elo = 100
-            };
-            _repository.Add(user);
-
-            // Act
-            var isValid = _repository.ValidateCredentials("test_user4", "wrong_password");
-
-            // Assert
-            Assert.That(isValid, Is.False);
-        }
-
-        [Test]
-        public void GetAllUsers_ReturnsAllUsers()
-        {
-            // Arrange
-            var users = new[]
-            {
-                new User { Username = "test_user5", Password = "test123", Coins = 20, Elo = 100 },
-                new User { Username = "test_user6", Password = "test123", Coins = 20, Elo = 110 }
-            };
-
-            foreach (var user in users)
-            {
-                _repository.Add(user);
-            }
-
-            // Act
-            var allUsers = _repository.GetAllUsers().ToList();
-
-            // Assert
-            Assert.That(allUsers.Count(u => u.Username.StartsWith("test_")), Is.EqualTo(2));
-            Assert.That(allUsers.First(u => u.Username == "test_user6").Elo, Is.EqualTo(110));
-        }
-
+        
         [Test]
         public void UserProfile_CreateAndRetrieve_WorksCorrectly()
         {

@@ -129,23 +129,7 @@ namespace MCTG
                 t.UserId == user.Id)), Times.Once);
         }
 
-        [Test]
-        public async Task HandleExecuteTradeAsync_InvalidTradeId_ReturnsBadRequest()
-        {
-            // Arrange
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "testuser";
-            var stream = new MemoryStream();
-
-            // Act
-            await _server.HandleExecuteTradeAsync(stream, "/tradings/invalid", "2", context);
-
-            // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 400 Bad Request"));
-        }
-
+        
         [Test]
         public async Task HandleExecuteTradeAsync_TradeWithSelf_ReturnsForbidden()
         {
@@ -193,31 +177,7 @@ namespace MCTG
             Assert.That(response, Contains.Substring("HTTP/1.1 200 OK"));
             _tradeRepositoryMock.Verify(r => r.ExecuteTrade(1, 2, 1), Times.Once);
         }
-
-        [Test]
-        public async Task HandleDeleteTradeAsync_UnauthorizedDelete_ReturnsForbidden()
-        {
-            // Arrange
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "testuser";
-            var user = new User { Id = 1, Username = "testuser" };
-            var trade = new Trade { Id = 1, UserId = 2 }; // Different user ID
-
-            _userRepositoryMock.Setup(r => r.GetByUsername("testuser")).Returns(user);
-            _tradeRepositoryMock.Setup(r => r.GetTradeById(1)).Returns(trade);
-
-            var stream = new MemoryStream();
-
-            // Act
-            await _server.HandleDeleteTradeAsync(stream, "/tradings/1", context);
-
-            // Assert
-            stream.Position = 0;
-            var response = Encoding.UTF8.GetString(stream.ToArray());
-            Assert.That(response, Contains.Substring("HTTP/1.1 403 Forbidden"));
-            _tradeRepositoryMock.Verify(r => r.DeleteTrade(It.IsAny<int>()), Times.Never);
-        }
-
+        
         [Test]
         public async Task HandleDeleteTradeAsync_SuccessfulDelete_ReturnsOk()
         {

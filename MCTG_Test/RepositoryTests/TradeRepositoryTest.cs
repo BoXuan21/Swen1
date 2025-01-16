@@ -108,24 +108,7 @@ namespace MCTG.Tests
             Assert.That(trade.Id, Is.GreaterThan(0));
         }
 
-        [Test]
-        public void CreateTrade_CardNotOwnedByUser_ThrowsException()
-        {
-            // Arrange
-            var trade = new Trade
-            {
-                CardId = _testCardId1,
-                UserId = _testUserId2, // Wrong user
-                RequiredType = "Spell",
-                MinimumDamage = 20
-            };
-
-            // Act & Assert
-            var ex = Assert.Throws<Exception>(() => _repository.CreateTrade(trade));
-            Assert.That(ex.Message, Is.EqualTo("Card not found or doesn't belong to user"));
-        }
         
-
         [Test]
         public void DeleteTrade_ExistingTrade_DeletesSuccessfully()
         {

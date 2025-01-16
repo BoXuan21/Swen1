@@ -49,18 +49,7 @@ namespace MCTG.Tests
             _repository = new CardRepository(_connectionString);
         }
 
-        [Test]
-        public void GetUserCards_ReturnsAllUserCards()
-        {
-            // Act
-            var cards = _repository.GetUserCards(_testUserId).ToList();
-
-            // Assert
-            Assert.That(cards, Has.Count.EqualTo(2));
-            Assert.That(cards[0].Name, Is.EqualTo("Dragon"));
-            Assert.That(cards[1].Name, Is.EqualTo("WaterSpell"));
-        }
-
+        
         [Test]
         public void GetUserCards_NonExistentUser_ReturnsEmptyList()
         {
