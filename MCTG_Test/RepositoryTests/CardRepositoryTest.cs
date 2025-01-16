@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using Npgsql;
 
 namespace MCTG.Tests

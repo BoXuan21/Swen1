@@ -1,5 +1,4 @@
-﻿using NUnit.Framework;
-using Npgsql;
+﻿using Npgsql;
 using Moq;
 
 namespace MCTG.Tests

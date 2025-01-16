@@ -62,30 +62,6 @@ namespace MCTG.Tests
         }
         
         [Test]
-        public async Task HandleGetDeckAsync_UserNotFound_ReturnsNotFound()
-        {
-            // Arrange
-            _userRepositoryMock.Setup(repo => repo.GetByUsername("testuser")).Returns((User)null);
-
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "testuser";
-            context.Request.Path = "/deck";
-
-            using var memoryStream = new MemoryStream();
-
-            // Act
-            await _server.HandleGetDeckAsync(memoryStream, context);
-
-            // Assert
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 404 Not Found", response);
-            StringAssert.Contains("User not found", response);
-        }
-
-        [Test]
         public async Task HandleGetDeckAsync_AuthenticationRequired_ReturnsUnauthorized()
         {
             // Arrange

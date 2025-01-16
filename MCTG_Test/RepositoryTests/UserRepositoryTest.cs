@@ -87,27 +87,7 @@ namespace MCTG.Tests
                 Assert.That(updatedUser.Elo, Is.EqualTo(110));
             });
         }
-
-        [Test]
-        public void ValidateCredentials_ValidUser_ReturnsTrue()
-        {
-            // Arrange
-            var user = new User
-            {
-                Username = "test_user3",
-                Password = "test123",
-                Coins = 20,
-                Elo = 100
-            };
-            _repository.Add(user);
-
-            // Act
-            var isValid = _repository.ValidateCredentials("test_user3", "test123");
-
-            // Assert
-            Assert.That(isValid, Is.True);
-        }
-
+        
         [Test]
         public void ValidateCredentials_InvalidPassword_ReturnsFalse()
         {

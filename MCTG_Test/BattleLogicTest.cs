@@ -80,5 +80,68 @@ namespace MCTG
             // Assert
             Assert.That(result.Winner, Is.EqualTo("User 1")); // Kraken should win despite lower damage
         }
+        
+        [Test]
+        public void SpecialRule_OrkVsWizard_WizardControls()
+        {
+            // Arrange
+            var ork = new Card("Ork", 100, ElementType.Normal) { CardType = "Monster" };
+            var wizard = new Card("Wizard", 50, ElementType.Normal) { CardType = "Monster" };
+    
+            deck1.AddCard(ork);
+            deck2.AddCard(wizard);
+    
+            battleLogic = new BattleLogic(user1, user2, deck1, deck2);
+
+            // Act
+            var result = battleLogic.ExecuteBattle();
+
+            // Assert
+            Assert.That(result.Winner, Is.EqualTo("User 2")); // Wizard should win
+            Assert.That(user1.Elo, Is.EqualTo(95)); // Lost -5
+            Assert.That(user2.Elo, Is.EqualTo(103)); // Won +3
+        }
+
+        [Test]
+        public void SpecialRule_KnightVsWaterSpell_KnightDrowns()
+        {
+            // Arrange
+            var knight = new Card("Knight", 100, ElementType.Normal) { CardType = "Monster" };
+            var waterSpell = new Card("WaterSpell", 20, ElementType.Water) { CardType = "Spell" };
+    
+            deck1.AddCard(knight);
+            deck2.AddCard(waterSpell);
+    
+            battleLogic = new BattleLogic(user1, user2, deck1, deck2);
+
+            // Act
+            var result = battleLogic.ExecuteBattle();
+
+            // Assert
+            Assert.That(result.Winner, Is.EqualTo("User 2")); // WaterSpell should win
+            Assert.That(user1.Elo, Is.EqualTo(95)); // Lost -5 
+            Assert.That(user2.Elo, Is.EqualTo(103)); // Won +3
+        }
+
+        [Test]
+        public void SpecialRule_DragonVsFireElves_FireElvesEvade()
+        {
+            // Arrange
+            var dragon = new Card("Dragon", 100, ElementType.Fire) { CardType = "Monster" };
+            var fireElves = new Card("FireElves", 30, ElementType.Fire) { CardType = "Monster" };
+    
+            deck1.AddCard(dragon);
+            deck2.AddCard(fireElves);
+    
+            battleLogic = new BattleLogic(user1, user2, deck1, deck2);
+
+            // Act
+            var result = battleLogic.ExecuteBattle();
+
+            // Assert
+            Assert.That(result.Winner, Is.EqualTo("User 2")); // FireElves should win
+            Assert.That(user1.Elo, Is.EqualTo(95)); // Lost -5
+            Assert.That(user2.Elo, Is.EqualTo(103)); // Won +3
+        }
     }
 }

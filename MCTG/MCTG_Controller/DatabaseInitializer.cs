@@ -1,6 +1,4 @@
-﻿using System;
-using System.IO;
-using Npgsql;
+﻿using Npgsql;
 
 namespace MCTG
 {

@@ -8,6 +8,6 @@ build_property.PlatformNeutralAssembly =
 build_property.EnforceExtendedAnalyzerRules = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = MCTG_Test
-build_property.ProjectDir = C:\Users\Bo Xuan Yang\RiderProjects\Swen1\MCTG_Test\
+build_property.ProjectDir = C:\Users\Bo Xuan Yang\Desktop\Projects\FinalMCTG\Swen1\MCTG_Test\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 

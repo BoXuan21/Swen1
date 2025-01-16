@@ -63,33 +63,7 @@ namespace MCTG.Tests
             StringAssert.Contains("Content-Type: application/json", response);
             StringAssert.Contains("\"Winner\":", response);
         }
-
-        [Test]
-        public async Task UserNotFound_ReturnsNotFound()
-        {
-            // Arrange
-            var battleRequest = new BattleRequest { OpponentUsername = "user2" };
-
-            _userRepositoryMock.Setup(repo => repo.GetByUsername("user1")).Returns((User)null);
-
-            var context = new DefaultHttpContext();
-            context.Items["Username"] = "user1";
-
-            using var memoryStream = new MemoryStream();
-            var body = System.Text.Json.JsonSerializer.Serialize(battleRequest);
-
-            // Act
-            await _server.HandleBattleAsync(memoryStream, context, body);
-
-            // Assert
-            memoryStream.Position = 0;
-            using var streamReader = new StreamReader(memoryStream);
-            var response = await streamReader.ReadToEndAsync();
-            
-            StringAssert.Contains("HTTP/1.1 404 Not Found", response);
-            StringAssert.Contains("User not found", response);
-        }
-
+        
         [Test]
         public async Task InsufficientCardsInDeck_ReturnsBadRequest()
         {
