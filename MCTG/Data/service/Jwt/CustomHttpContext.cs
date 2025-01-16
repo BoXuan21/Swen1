@@ -52,31 +52,7 @@ namespace MCTG
             Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             Headers["Content-Type"] = "application/json";
         }
-
-        public string GetFullResponse()
-        {
-            var response = new StringBuilder();
-            response.AppendLine($"HTTP/1.1 {StatusCode} {StatusDescription}");
-            
-            if (!string.IsNullOrEmpty(Body))
-            {
-                Headers["Content-Length"] = Encoding.UTF8.GetByteCount(Body).ToString();
-            }
-
-            foreach (var header in Headers)
-            {
-                response.AppendLine($"{header.Key}: {header.Value}");
-            }
-
-            response.AppendLine();
-            
-            if (!string.IsNullOrEmpty(Body))
-            {
-                response.Append(Body);
-            }
-
-            return response.ToString();
-        }
+        
 
         public void SetUnauthorized()
         {

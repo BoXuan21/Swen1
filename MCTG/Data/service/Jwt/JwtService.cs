@@ -22,14 +22,12 @@
         {
             try
             {
-                // If it's in the simple format (username-mtcgToken)
+                // simple format like in der Beschreibung
                 if (token.EndsWith("-mtcgToken"))
                 {
                     return token.Replace("-mtcgToken", "");
                 }
-
-                // For a more secure implementation, you could add additional validation here
-                // For example, checking token expiration, signature validation, etc.
+                
                 return null;
             }
             catch (Exception ex)

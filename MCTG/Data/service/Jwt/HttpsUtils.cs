@@ -52,21 +52,6 @@ namespace MCTG
 
             return string.Join("\r\n", requestLines.Skip(headerEndIndex + 1));
         }
-
-        public static Dictionary<string, string> ParseHeaders(string[] headerLines)
-        {
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var line in headerLines)
-            {
-                var parts = line.Split(": ", 2);
-                if (parts.Length == 2)
-                {
-                    headers[parts[0]] = parts[1];
-                }
-            }
-
-            return headers;
-        }
+        
     }
 }
